@@ -1,4 +1,4 @@
-#include <iostream>
+﻿#include <iostream>
 #include <cstdlib>
 #include <tuple>
 #include <intrin.h>
@@ -98,6 +98,7 @@ private:
         {
             const uint64_t temp = moves;
             moves |= dir_mask.first & blanks & (dir_mask.second < 0 ? moves >> (-dir_mask.second) : moves << dir_mask.second);
+            // moves |= dir_mask.first & blanks & (dir_mask.second < 0 ? __ull_rshift(moves, -dir_mask.second) : __ll_lshift(moves, dir_mask.second));
             if (temp == moves)
                 break;
         }
