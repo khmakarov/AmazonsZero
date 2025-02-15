@@ -40,26 +40,30 @@ public:
         // 实现细节需补充...
     }
 
-    std::vector<std::tuple<int, int, int>> get_legal_actions()
+    std::pair<std::array<std::tuple<int, int, int>, 0x4D0>,int> get_legal_actions()
     {
-        std::vector<std::tuple<int, int, int>> actions;
-        actions.reserve(0x4D0);
+        auto start = std::chrono::high_resolution_clock::now();
+        std::array<std::tuple<int, int, int>, 0x4D0> actions;
         const std::array<uint64_t, 4> my_pieces = unpack_pieces(current_player ? white : black);
+        int count = 0;
         for (const auto &from : my_pieces)
         {
             for (uint64_t TO = generate_moves(from), to; TO; TO ^= to)
             {
                 to = lowest1(TO);
                 apply_move(from, to);
-                for (uint64_t BLOCK = generate_moves(to), block; BLOCK; BLOCK ^= block)
+                for (uint64_t BLOCK = generate_moves(to), block; BLOCK; BLOCK ^= block, count++)
                 {
                     block = lowest1(BLOCK);
-                    actions.push_back(pack_action(from, to, block));
+                    actions[count] = pack_action(from, to, block);
                 }
                 restore_action();
             }
         }
-        return actions;
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+        std::cout << "Time elapsed: " << duration << " ns\n";
+        return { actions,count };
     }
     void step(const std::tuple<int, int, int> &unpacked_action)
     {
@@ -167,10 +171,6 @@ PYBIND11_MODULE(libamazons, m)
 int main()
 {
     GameCore game;
-    auto start = std::chrono::steady_clock::now();
     game.get_legal_actions();
-    auto end = std::chrono::steady_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    std::cout << "Time elapsed: " << duration << " microseconds" << std::endl;
     return 0;
 }
