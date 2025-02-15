@@ -32,14 +32,7 @@ public:
         new_game.current_player = current_player;
         return new_game;
     }
-    /* 加载状态（Python接口）
-    void load_state(py::array_t<uint8_t> state_np)
-    {
-        auto buf = state_np.request();
-        // 将numpy数组转换为位棋盘表示
-        // 实现细节需补充...
-    }
-    */
+
     std::pair<std::array<std::tuple<int, int, int>, 0x4D0>, int> get_legal_actions()
     {
         auto start_total = std::chrono::high_resolution_clock::now();
@@ -98,7 +91,7 @@ public:
 
         auto end_total = std::chrono::high_resolution_clock::now();
         profile_data.get_legal_actions_total += std::chrono::duration_cast<std::chrono::nanoseconds>(end_total - start_total);
-        return { actions,count };
+        return {actions, count};
     }
 
     void print_profile_data() const
@@ -170,7 +163,7 @@ private:
         {
             const uint64_t temp = moves;
             moves |= dir_mask.first & blanks & (dir_mask.second < 0 ? moves >> (-dir_mask.second) : moves << dir_mask.second);
-            //moves |= dir_mask.first & blanks & (dir_mask.second < 0 ? __ull_rshift(moves, -dir_mask.second) : __ll_lshift(moves, dir_mask.second));
+            // moves |= dir_mask.first & blanks & (dir_mask.second < 0 ? __ull_rshift(moves, -dir_mask.second) : __ll_lshift(moves, dir_mask.second));
             if (temp == moves)
                 break;
         }
@@ -231,18 +224,7 @@ private:
         return static_cast<int>(index);
     }
 };
-/*
-PYBIND11_MODULE(libamazons, m)
-{
-    py::class_<GameCore>(m, "GameCore")
-        .def(py::init<>())
-        .def("load_state", &GameCore::load_state)
-        .def("get_legal_actions", &GameCore::get_legal_actions)
-        .def("step", &GameCore::step)
-        .def("is_terminal", &GameCore::is_terminal)
-        .def("get_result", &GameCore::get_result);
-}
-*/
+
 int main()
 {
     GameCore game;
