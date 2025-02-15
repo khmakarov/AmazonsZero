@@ -1,8 +1,8 @@
-﻿#include <iostream>
+﻿#pragma once
 #include <cstdlib>
-#include <tuple>
 #include <intrin.h>
-#include <chrono>
+#include <iostream>
+#include <tuple>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 namespace py = pybind11;
@@ -40,9 +40,8 @@ public:
         // 实现细节需补充...
     }
 
-    std::pair<std::array<std::tuple<int, int, int>, 0x4D0>,int> get_legal_actions()
+    std::pair<std::array<std::tuple<int, int, int>, 0x4D0>, int> get_legal_actions()
     {
-        auto start = std::chrono::high_resolution_clock::now();
         std::array<std::tuple<int, int, int>, 0x4D0> actions;
         const std::array<uint64_t, 4> my_pieces = unpack_pieces(current_player ? white : black);
         int count = 0;
@@ -60,10 +59,7 @@ public:
                 restore_action();
             }
         }
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-        std::cout << "Time elapsed: " << duration << " ns\n";
-        return { actions,count };
+        return {actions, count};
     }
     void step(const std::tuple<int, int, int> &unpacked_action)
     {
@@ -102,7 +98,6 @@ private:
         {
             const uint64_t temp = moves;
             moves |= dir_mask.first & blanks & (dir_mask.second < 0 ? moves >> (-dir_mask.second) : moves << dir_mask.second);
-            // moves |= dir_mask.first & blanks & (dir_mask.second < 0 ? __ull_rshift(moves, -dir_mask.second) : __ll_lshift(moves, dir_mask.second));
             if (temp == moves)
                 break;
         }
@@ -166,11 +161,4 @@ PYBIND11_MODULE(libamazons, m)
         .def("step", &GameCore::step)
         .def("is_terminal", &GameCore::is_terminal)
         .def("get_result", &GameCore::get_result);
-}
-
-int main()
-{
-    GameCore game;
-    game.get_legal_actions();
-    return 0;
 }
