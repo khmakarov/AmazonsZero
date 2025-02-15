@@ -40,65 +40,64 @@ public:
         // 实现细节需补充...
     }
     */
-    std::vector<std::tuple<int, int, int>> get_legal_actions()
+    std::array<std::tuple<int, int, int>, 0x4D0> get_legal_actions()
     {
-        auto start_total = std::chrono::steady_clock::now();
-        std::vector<std::tuple<int, int, int>> actions;
-        actions.reserve(0x4D0);
+        auto start_total = std::chrono::high_resolution_clock::now();
+        std::array<std::tuple<int, int, int>, 0x4D0> actions;
 
         // Measure unpack_pieces time
-        auto start_unpack = std::chrono::steady_clock::now();
+        auto start_unpack = std::chrono::high_resolution_clock::now();
         const std::array<uint64_t, 4> my_pieces = unpack_pieces(current_player ? white : black);
-        auto end_unpack = std::chrono::steady_clock::now();
+        auto end_unpack = std::chrono::high_resolution_clock::now();
         profile_data.unpack_pieces_time += std::chrono::duration_cast<std::chrono::nanoseconds>(end_unpack - start_unpack);
-
+        int count = 0;
         for (const auto &from : my_pieces)
         {
             // Measure generate_moves (piece) time
-            auto start_gen_piece = std::chrono::steady_clock::now();
+            auto start_gen_piece = std::chrono::high_resolution_clock::now();
             uint64_t TO = generate_moves(from);
-            auto end_gen_piece = std::chrono::steady_clock::now();
+            auto end_gen_piece = std::chrono::high_resolution_clock::now();
             profile_data.generate_moves_piece_time += std::chrono::duration_cast<std::chrono::nanoseconds>(end_gen_piece - start_gen_piece);
 
             for (uint64_t to; TO; TO ^= to)
             {
-                auto start_lowest1_piece = std::chrono::steady_clock::now();
+                auto start_lowest1_piece = std::chrono::high_resolution_clock::now();
                 to = lowest1(TO);
-                auto end_lowest1_piece = std::chrono::steady_clock::now();
+                auto end_lowest1_piece = std::chrono::high_resolution_clock::now();
                 profile_data.lowest1_time += std::chrono::duration_cast<std::chrono::nanoseconds>(end_lowest1_piece - start_lowest1_piece);
                 // Measure apply_move time
-                auto start_apply = std::chrono::steady_clock::now();
+                auto start_apply = std::chrono::high_resolution_clock::now();
                 apply_move(from, to);
-                auto end_apply = std::chrono::steady_clock::now();
+                auto end_apply = std::chrono::high_resolution_clock::now();
                 profile_data.apply_move_time += std::chrono::duration_cast<std::chrono::nanoseconds>(end_apply - start_apply);
 
                 // Measure generate_moves (block) time
-                auto start_gen_block = std::chrono::steady_clock::now();
+                auto start_gen_block = std::chrono::high_resolution_clock::now();
                 uint64_t BLOCK = generate_moves(to);
-                auto end_gen_block = std::chrono::steady_clock::now();
+                auto end_gen_block = std::chrono::high_resolution_clock::now();
                 profile_data.generate_moves_block_time += std::chrono::duration_cast<std::chrono::nanoseconds>(end_gen_block - start_gen_block);
 
-                for (uint64_t block; BLOCK; BLOCK ^= block)
+                for (uint64_t block; BLOCK; BLOCK ^= block, count++)
                 {
-                    auto start_lowest1_piece1 = std::chrono::steady_clock::now();
+                    auto start_lowest1_piece1 = std::chrono::high_resolution_clock::now();
                     block = lowest1(BLOCK);
-                    auto end_lowest1_piece1 = std::chrono::steady_clock::now();
+                    auto end_lowest1_piece1 = std::chrono::high_resolution_clock::now();
                     profile_data.lowest1_time += std::chrono::duration_cast<std::chrono::nanoseconds>(end_lowest1_piece1 - start_lowest1_piece1);
-                    auto start_push_back_action_piece = std::chrono::steady_clock::now();
-                    actions.push_back(pack_action(from, to, block));
-                    auto end_push_back_action_piece = std::chrono::steady_clock::now();
+                    auto start_push_back_action_piece = std::chrono::high_resolution_clock::now();
+                    actions[count] = pack_action(from, to, block);
+                    auto end_push_back_action_piece = std::chrono::high_resolution_clock::now();
                     profile_data.push_back_action_time += std::chrono::duration_cast<std::chrono::nanoseconds>(end_push_back_action_piece - start_push_back_action_piece);
                 }
 
                 // Measure restore_action time
-                auto start_restore = std::chrono::steady_clock::now();
+                auto start_restore = std::chrono::high_resolution_clock::now();
                 restore_action();
-                auto end_restore = std::chrono::steady_clock::now();
+                auto end_restore = std::chrono::high_resolution_clock::now();
                 profile_data.restore_action_time += std::chrono::duration_cast<std::chrono::nanoseconds>(end_restore - start_restore);
             }
         }
 
-        auto end_total = std::chrono::steady_clock::now();
+        auto end_total = std::chrono::high_resolution_clock::now();
         profile_data.get_legal_actions_total += std::chrono::duration_cast<std::chrono::nanoseconds>(end_total - start_total);
         return actions;
     }
@@ -106,15 +105,15 @@ public:
     void print_profile_data() const
     {
         std::cout << "=== Function Time Profile ===\n";
-        std::cout << "get_legal_actions total: " << profile_data.get_legal_actions_total.count() / 1000 << " μs\n";
-        std::cout << "unpack_pieces:           " << profile_data.unpack_pieces_time.count() / 1000 << " μs\n";
-        std::cout << "generate_moves (piece):  " << profile_data.generate_moves_piece_time.count() / 1000 << " μs\n";
-        std::cout << "generate_moves (block):  " << profile_data.generate_moves_block_time.count() / 1000 << " μs\n";
-        std::cout << "ray_cast:                " << profile_data.ray_cast_time.count() / 1000 << " μs\n";
-        std::cout << "apply_move:              " << profile_data.apply_move_time.count() / 1000 << " μs\n";
-        std::cout << "restore_action:          " << profile_data.restore_action_time.count() / 1000 << " μs\n";
-        std::cout << "push_back_action:        " << profile_data.push_back_action_time.count() / 1000 << " μs\n";
-        std::cout << "lowest1:                 " << profile_data.lowest1_time.count() / 1000 << " μs\n";
+        std::cout << "get_legal_actions total: " << static_cast<double>(profile_data.get_legal_actions_total.count()) << " ns\n";
+        std::cout << "unpack_pieces:           " << static_cast<double>(profile_data.unpack_pieces_time.count()) << " ns\n";
+        std::cout << "generate_moves (piece):  " << static_cast<double>(profile_data.generate_moves_piece_time.count()) << " ns\n";
+        std::cout << "generate_moves (block):  " << static_cast<double>(profile_data.generate_moves_block_time.count()) << " ns\n";
+        std::cout << "ray_cast:                " << static_cast<double>(profile_data.ray_cast_time.count()) << " ns\n";
+        std::cout << "apply_move:              " << static_cast<double>(profile_data.apply_move_time.count()) << " ns\n";
+        std::cout << "restore_action:          " << static_cast<double>(profile_data.restore_action_time.count()) << " ns\n";
+        std::cout << "push_back_action:        " << static_cast<double>(profile_data.push_back_action_time.count()) << " ns\n";
+        std::cout << "lowest1:                 " << static_cast<double>(profile_data.lowest1_time.count()) << " ns\n";
         std::cout << "==============================\n";
     }
     void step(const std::tuple<int, int, int> &unpacked_action)
@@ -157,9 +156,9 @@ private:
         uint64_t moves = from;
         for (const auto &dir : DIRECTION_MASKS)
         {
-            auto start_ray = std::chrono::steady_clock::now();
+            auto start_ray = std::chrono::high_resolution_clock::now();
             moves |= ray_cast(from, dir, blanks);
-            auto end_ray = std::chrono::steady_clock::now();
+            auto end_ray = std::chrono::high_resolution_clock::now();
             profile_data.ray_cast_time += std::chrono::duration_cast<std::chrono::nanoseconds>(end_ray - start_ray);
         }
         return moves ^ from;
@@ -180,11 +179,11 @@ private:
 
     void apply_move(const uint64_t from, const uint64_t to)
     {
-        auto start = std::chrono::steady_clock::now();
+        auto start = std::chrono::high_resolution_clock::now();
         current_player ? white = (white ^ from) | to : black = (black ^ from) | to;
         piece_from_backpack = from;
         piece_to_backpack = to;
-        auto end = std::chrono::steady_clock::now();
+        auto end = std::chrono::high_resolution_clock::now();
         profile_data.apply_move_time += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
     }
     void place_block(const uint64_t block)
@@ -194,10 +193,10 @@ private:
     }
     void restore_action()
     {
-        auto start = std::chrono::steady_clock::now();
+        auto start = std::chrono::high_resolution_clock::now();
         current_player ? white = (white ^ piece_to_backpack) | piece_from_backpack : black = (black ^ piece_to_backpack) | piece_from_backpack;
         blocks ^= blocks_backpack;
-        auto end = std::chrono::steady_clock::now();
+        auto end = std::chrono::high_resolution_clock::now();
         profile_data.restore_action_time += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
     }
     static std::tuple<int, int, int> pack_action(const uint64_t from, const uint64_t to, const uint64_t block)
