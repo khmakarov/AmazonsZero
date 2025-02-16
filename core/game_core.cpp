@@ -1,4 +1,5 @@
 #include "game_core.h"
+#include "mcts.h"
 
 GameCore::GameCore() : black(0x0000000000810024),
                        white(0x2400810000000000),
@@ -147,4 +148,13 @@ PYBIND11_MODULE(libamazons, m)
         .def("step", &GameCore::step)
         .def("is_terminal", &GameCore::is_terminal)
         .def("get_result", &GameCore::get_result);
+
+    py::class_<MCTSEngine>(m, "MCTSEngine")
+        .def(py::init<int, double>())
+        .def("run", &MCTSEngine::run);
+
+    py::class_<MCTSNode>(m, "MCTSNode")
+        .def("select", &MCTSNode::select)
+        .def("expand", &MCTSNode::expand)
+        .def("update", &MCTSNode::update);
 }
