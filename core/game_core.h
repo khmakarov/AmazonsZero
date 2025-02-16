@@ -28,6 +28,7 @@ public:
     GameCore clone() const;
 
     void load_state(py::array_t<uint8_t> state_np);
+    int get_current_player() const;
     std::pair<std::array<std::tuple<int, int, int>, 0x4D0>, int> get_legal_actions();
     void step(const std::tuple<int, int, int> &unpacked_action);
     bool is_terminal() const;

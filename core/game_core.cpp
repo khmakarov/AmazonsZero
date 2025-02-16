@@ -23,6 +23,11 @@ void GameCore::load_state(py::array_t<uint8_t> state_np)
     auto buf = state_np.request();
 }
 
+int GameCore::get_current_player() const
+{
+    return current_player;
+}
+
 std::pair<std::array<std::tuple<int, int, int>, 0x4D0>, int> GameCore::get_legal_actions()
 {
     std::array<std::tuple<int, int, int>, 0x4D0> actions;
