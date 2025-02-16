@@ -6,8 +6,7 @@
 class MCTSNode
 {
 public:
-    MCTSNode(std::shared_ptr<GameCore> state, MCTSNode *parent = nullptr)
-        : state(state), parent(parent), visit_count(0), value_sum(0), prior(0) {}
+    MCTSNode(std::shared_ptr<GameCore> state, MCTSNode *parent = nullptr) : state(state), parent(parent), visit_count(0), value_sum(0), prior(0) {}
 
     MCTSNode *select(double c_puct);
     void expand(const std::vector<float> &action_probs);
@@ -25,11 +24,8 @@ public:
 class MCTSEngine
 {
 public:
-    MCTSEngine(int n_simulations, double c_puct)
-        : n_simulations(n_simulations), c_puct(c_puct) {}
-
-    std::vector<float> run(std::shared_ptr<GameCore> root_state,
-                           py::function policy_value_fn);
+    MCTSEngine(int n_simulations, double c_puct) : n_simulations(n_simulations), c_puct(c_puct) {}
+    std::vector<float> run(std::shared_ptr<GameCore> root_state, py::function policy_value_fn);
 
 private:
     void simulate(std::shared_ptr<GameCore> state);
