@@ -6,7 +6,6 @@
 #include <array>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
-#include "mcts.h"
 
 namespace py = pybind11;
 
