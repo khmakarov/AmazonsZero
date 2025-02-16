@@ -47,9 +47,8 @@ std::pair<std::array<std::tuple<int, int, int>, 0x4D0>, int> GameCore::get_legal
 void GameCore::step(const std::tuple<int, int, int> &unpacked_action)
 {
     const std::array<uint64_t, 3> action = unpack_action(unpacked_action);
-    const uint64_t from = action[0], to = action[1], block = action[2];
-    apply_move(from, to);
-    place_block(block);
+    apply_move(action[0], action[1]);
+    place_block(action[2]);
     current_player ^= 1;
 }
 

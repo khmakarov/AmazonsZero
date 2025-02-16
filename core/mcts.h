@@ -16,16 +16,3 @@ public:
     void expand(const std::vector<float> &action_probs);
     void backup(float value);
 };
-
-class MCTSBridge
-{
-public:
-    MCTSBridge(int n_simulations, double c_puct);
-    std::vector<float> get_action_probs(py::object py_game, py::function policy_fn);
-    void update_with_move(int last_move);
-
-private:
-    std::unique_ptr<MCTSNode> root;
-    int n_simulations;
-    double c_puct;
-};

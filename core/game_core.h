@@ -27,7 +27,6 @@ public:
     GameCore();
     GameCore clone() const;
 
-    // Python接口方法
     void load_state(py::array_t<uint8_t> state_np);
     std::pair<std::array<std::tuple<int, int, int>, 0x4D0>, int> get_legal_actions();
     void step(const std::tuple<int, int, int> &unpacked_action);
@@ -39,7 +38,6 @@ private:
     uint64_t piece_from_backpack = 0, piece_to_backpack = 0, blocks_backpack = 0;
     int current_player;
 
-    // 辅助方法声明
     uint64_t generate_moves(uint64_t from) const;
     static uint64_t ray_cast(uint64_t from, std::pair<uint64_t, int> dir_mask, uint64_t blanks);
     void apply_move(uint64_t from, uint64_t to);
