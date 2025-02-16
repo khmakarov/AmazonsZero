@@ -4,9 +4,7 @@
 GameCore::GameCore() : black(0x0000000000810024),
                        white(0x2400810000000000),
                        blocks(0),
-                       current_player(0)
-{
-}
+                       current_player(0) {}
 
 GameCore GameCore::clone() const
 {
