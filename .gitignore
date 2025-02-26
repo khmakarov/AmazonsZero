@@ -1,2 +1,5 @@
 /.vscode
 /core/final.cpp
+model/mcts.py
+scripts/test_demo.py
+scripts/prompt.txt

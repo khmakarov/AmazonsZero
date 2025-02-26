@@ -28,7 +28,7 @@ public:
     std::vector<float> run(std::shared_ptr<GameCore> root_state, py::function policy_value_fn);
 
 private:
-    void simulate(std::shared_ptr<GameCore> state, py::function policy_value_fn);
+    void simulate(MCTSNode root, py::function policy_value_fn);
 
     int n_simulations;
     double c_puct;

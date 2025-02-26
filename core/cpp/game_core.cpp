@@ -1,34 +1,44 @@
-#include "game_core.h"
-#include "mcts.h"
+﻿#include "game_core.h"
 
-GameCore::GameCore() : black(0x0000000000810024),
+GameCore::GameCore() : current_player(0),
+                       black(0x0000000000810024),
                        white(0x2400810000000000),
-                       blocks(0),
-                       current_player(0) {}
+                       blocks(0) {}
 
-GameCore GameCore::clone() const
+std::string GameCore::stringRepresentation() const
 {
-    GameCore new_game;
-    new_game.black = black;
-    new_game.white = white;
-    new_game.blocks = blocks;
-    new_game.current_player = current_player;
-    return new_game;
+    size_t hash = 0;
+    std::hash<uint64_t> hasher;
+    hash ^= hasher(black) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+    hash ^= hasher(white) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+    hash ^= hasher(blocks) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+    hash ^= std::hash<int>()(current_player);
+    std::string s = std::format("{}", hash);
+    return s;
 }
 
-void GameCore::load_state(py::array_t<uint8_t> state_np)
+std::array<std::array<std::array<int, 5>, 8>, 8> GameCore::get_state() const
 {
-    auto buf = state_np.request();
+    std::array<std::array<std::array<int, 5>, 8>, 8> state{};
+    for (int y = 0; y < 8; ++y)
+    {
+        for (int x = 0; x < 8; ++x)
+        {
+            int pos = y * 8 + x; // 计算位位置
+            uint64_t mask = 1ULL << pos;
+            state[y][x][0] = (black & mask) ? 1 : 0;
+            state[y][x][1] = (white & mask) ? 1 : 0;
+            state[y][x][2] = (blocks & mask) ? 1 : 0;
+            state[y][x][3] = (current_player == 0) ? 1 : 0;
+            state[y][x][4] = (current_player == 1) ? 1 : 0;
+        }
+    }
+    return state;
 }
 
-int GameCore::get_current_player() const
+std::array<bool, TOTAL_ACTIONS> GameCore::get_legal_actions()
 {
-    return current_player;
-}
-
-std::pair<std::array<std::tuple<int, int, int>, 0x4D0>, int> GameCore::get_legal_actions()
-{
-    std::array<std::tuple<int, int, int>, 0x4D0> actions;
+    std::array<std::tuple<uint8_t, uint8_t, uint8_t>, 0x800> actions;
     const std::array<uint64_t, 4> my_pieces = unpack_pieces(current_player ? white : black);
     int count = 0;
     for (const auto &from : my_pieces)
@@ -45,24 +55,22 @@ std::pair<std::array<std::tuple<int, int, int>, 0x4D0>, int> GameCore::get_legal
             restore_action();
         }
     }
-    return {actions, count};
+    return generate_mask({actions, count});
 }
 
-void GameCore::step(const std::tuple<int, int, int> &unpacked_action)
+void GameCore::step(const int action_index)
 {
+    const std::tuple<uint8_t, uint8_t, uint8_t> &unpacked_action = action_list[action_index];
     const std::array<uint64_t, 3> action = unpack_action(unpacked_action);
     apply_move(action[0], action[1]);
     place_block(action[2]);
     current_player ^= 1;
 }
 
-bool GameCore::is_terminal() const
+int GameCore::is_terminal() const
 {
-    return generate_moves(current_player ? white : black) == 0ull;
-}
-
-int GameCore::get_result() const
-{
+    if (generate_moves(current_player ? white : black))
+        return -1;
     return current_player ^ 1;
 }
 
@@ -107,7 +115,7 @@ void GameCore::restore_action()
     blocks ^= blocks_backpack;
 }
 
-std::tuple<int, int, int> GameCore::pack_action(const uint64_t from, const uint64_t to, const uint64_t block)
+std::tuple<uint8_t, uint8_t, uint8_t> GameCore::pack_action(const uint64_t from, const uint64_t to, const uint64_t block)
 {
     return {lowest1_bit(from), lowest1_bit(to), lowest1_bit(block)};
 }
@@ -130,34 +138,14 @@ std::array<uint64_t, 4> GameCore::unpack_pieces(const uint64_t pieces)
     return {p1, p2, p3, p4};
 }
 
-uint64_t GameCore::lowest1(uint64_t x)
+uint64_t GameCore::lowest1(const uint64_t x)
 {
     return x & (-static_cast<int64_t>(x));
 }
 
-int GameCore::lowest1_bit(uint64_t x)
+int GameCore::lowest1_bit(const uint64_t x)
 {
     unsigned long index;
     _BitScanForward64(&index, x);
     return static_cast<int>(index);
-}
-
-PYBIND11_MODULE(libamazons, m)
-{
-    py::class_<GameCore>(m, "GameCore")
-        .def(py::init<>())
-        .def("load_state", &GameCore::load_state)
-        .def("get_legal_actions", &GameCore::get_legal_actions)
-        .def("step", &GameCore::step)
-        .def("is_terminal", &GameCore::is_terminal)
-        .def("get_result", &GameCore::get_result);
-
-    py::class_<MCTSEngine>(m, "MCTSEngine")
-        .def(py::init<int, double>())
-        .def("run", &MCTSEngine::run);
-
-    py::class_<MCTSNode>(m, "MCTSNode")
-        .def("select", &MCTSNode::select)
-        .def("expand", &MCTSNode::expand)
-        .def("update", &MCTSNode::update);
 }

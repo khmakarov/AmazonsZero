@@ -52,8 +52,8 @@ std::vector<float> MCTSEngine::run(std::shared_ptr<GameCore> root_state, py::fun
 {
     MCTSNode root(root_state);
 
-    for (int i = 0; i < n_simulations; ++i) //暂时使用单线程
-        simulate(root_state, policy_value_fn);
+    for (int i = 0; i < n_simulations; ++i) // 暂时使用单线程
+        simulate(root, policy_value_fn);
 
     // 提取策略
     std::vector<float> counts(root.children.size(), 0);
@@ -62,16 +62,15 @@ std::vector<float> MCTSEngine::run(std::shared_ptr<GameCore> root_state, py::fun
     return counts;
 }
 
-void MCTSEngine::simulate(std::shared_ptr<GameCore> state, py::function policy_value_fn)
+void MCTSEngine::simulate(MCTSNode root, py::function policy_value_fn)
 {
-    MCTSNode root(state);
     // 选择阶段
-    MCTSNode* node = &root;
+    MCTSNode *node = &root;
     while (!node->is_leaf())
         node = node->select(c_puct);
 
     // 扩展与评估
-    if (!node->state->is_terminal())
+    if (!node->state->is_terminal().first)
     {
         // 调用Python获取策略和价值
         py::tuple result = policy_value_fn(node->state);
@@ -83,7 +82,7 @@ void MCTSEngine::simulate(std::shared_ptr<GameCore> state, py::function policy_v
     }
     else
     {
-        if (node->state->get_result() == node->state->get_current_player())
+        if (node->state->is_terminal().second == node->state->current_player)
             node->update(1.0f);
         else
             node->update(-1.0f);
