@@ -2,7 +2,7 @@
 void load_actions()
 {
 	int count = 0;
-	std::ifstream f("E:/VSCPython/AmazonsZero/scripts/amazons_actions.bin", std::ios::binary);
+	std::ifstream f("E:/VSCPython/AmazonsZero/data/actions/amazons_actions.bin", std::ios::binary);
 
 	while (true)
 	{
@@ -16,17 +16,21 @@ void load_actions()
 	}
 }
 
-std::array<bool, TOTAL_ACTIONS> generate_mask(const std::pair<std::array<std::tuple<uint8_t, uint8_t, uint8_t>, 0x800>, int> &legal_actions)
+std::pair<std::array<bool, TOTAL_ACTIONS>, std::array<int, 0x800>> generate_mask(const std::pair<std::array<std::tuple<uint8_t, uint8_t, uint8_t>, 0x800>, int> &legal_actions)
 {
+	auto [actions, counts] = legal_actions;
 	std::array<bool, TOTAL_ACTIONS> mask{};
+	std::array<int, 0x800> mask_index{counts};
 	int count = 0;
-	for (const auto &action : legal_actions.first)
+	for (const auto &action : actions)
 	{
-		if (count == legal_actions.second)
+		if (count == counts)
 			break;
 		if (auto it = action_map.find((static_cast<size_t>(std::get<0>(action)) << 16) | (static_cast<size_t>(std::get<1>(action)) << 8) | static_cast<size_t>(std::get<2>(action))); it != action_map.end())
+		{
 			mask[it->second] = true;
-		count++;
+			mask_index[++count] = static_cast<int>(it->second);
+		}
 	}
-	return mask;
+	return {mask, mask_index};
 }

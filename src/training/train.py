@@ -2,11 +2,11 @@
 import torch
 import torch.optim as optim
 import numpy as np
-from collections import deque
 import random
-from mcts import MCTS
-from net import AlphaZeroNet
-from amazons_core import GameCore
+from core.python.mcts import MCTS
+from model.net import AlphaZeroNet
+from Amazons import GameCore
+from src.utils.visualize import AmazonsVisualizer
 import os
 
 TOTAL_ACTIONS = 33344
@@ -16,10 +16,10 @@ class Trainer:
 
     def __init__(self, args):
         self.args = args
-        self.game = self._init_game()
+        self.game = GameCore()
         self.nnet = self._init_net()
         self.optimizer = optim.Adam(self.nnet.parameters(), lr=args.lr)
-        self.mcts = MCTS(self.game, self.nnet, args)
+        self.mcts = MCTS(self.nnet, args)
         self.train_examples = []
         self.batch_size = args.batch_size
         self.num_iters = args.num_iters
@@ -27,39 +27,9 @@ class Trainer:
         self.checkpoint_dir = args.checkpoint_dir
         os.makedirs(self.checkpoint_dir, exist_ok=True)
 
-    def _init_game(self):
-
-        class AmazonsGameWrapper:
-
-            def __init__(self):
-                self.core = GameCore()
-                self.action_size = TOTAL_ACTIONS
-
-            def getGameEnded(self, state, player):
-                terminal, winner = state.is_terminal()
-                if not terminal:
-                    return 0
-                return 1 if winner == player else -1
-
-            def getValidMoves(self, state):
-                return np.array(state.get_legal_actions(), dtype=np.float32)
-
-            def getNextState(self, state, action_index):
-                new_state = state.clone()
-                new_state.step(action_index)
-                return new_state, new_state.current_player
-
-            def getActionSize(self):
-                return self.action_size
-
-            def stringRepresentation(self, state):
-                return state.stringRepresentation()
-
-        return AmazonsGameWrapper()
-
     def _init_net(self):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        nnet = AlphaZeroNet(action_size=TOTAL_ACTIONS).to(device)
+        nnet = AlphaZeroNet().to(device)
         if self.args.load_model:
             checkpoint = torch.load(self.args.load_model)
             nnet.load_state_dict(checkpoint['model'])
@@ -67,18 +37,19 @@ class Trainer:
 
     def execute_episode(self):
         examples = []
-        state = self.game.core.clone()
+        state = GameCore(self.game)
         while True:
-            canonical_state = state
-            temp = 1 if len(examples) < 30 else 0.1  # 前30步探索，后续利用
-            pi = self.mcts.getActionProb(canonical_state, temp=temp)
-            examples.append([canonical_state, pi, None])
+            pi = self.mcts.getActionProb(state)
+            examples.append([state, pi, None])
 
-            action = np.random.choice(len(pi), p=pi)
-            next_state, _ = self.game.getNextState(state, action)
-            ended = self.game.getGameEnded(next_state, 1)
-
+            action_index = np.random.choice(len(pi), p=pi)
+            next_state = GameCore(state)
+            next_state.step(action_index)
+            ended = next_state.is_terminal()
+            print(self.game.index2action(action_index))
             if ended != 0:
+                visualizer = AmazonsVisualizer(examples)
+                visualizer.run()
                 return [(x[0], x[1], ended) for x in examples]
             state = next_state
 
@@ -127,22 +98,18 @@ class Trainer:
         print(f"Saved checkpoint to {filepath}")
 
 
-def main():
-
-    class Args:
-        numMCTSSims = 128  # MCTS模拟次数
-        cpuct = 1.0  # 探索系数
-        lr = 0.001  # 学习率
-        batch_size = 2048  # 训练批次大小
-        num_iters = 1000  # 训练总迭代次数
-        num_eps = 100  # 每迭代自我对弈次数
-        checkpoint_freq = 50  # 保存间隔
-        checkpoint_dir = "model/checkpoints"
-        load_model = None  # 预训练模型路径
-
-    trainer = Trainer(Args())
-    trainer.learn()
+class Args:
+    numMCTSSims = 128  # MCTS模拟次数
+    cpuct = 1.0  # 探索系数
+    lr = 0.001  # 学习率
+    batch_size = 2048  # 训练批次大小
+    num_iters = 1000  # 训练总迭代次数
+    num_eps = 100  # 每迭代自我对弈次数
+    checkpoint_freq = 50  # 保存间隔
+    checkpoint_dir = "../model/checkpoint"
+    load_model = None  # 预训练模型路径
 
 
 if __name__ == "__main__":
-    main()
+    trainer = Trainer(Args())
+    trainer.learn()

@@ -21,46 +21,26 @@ class ResidualBlock(nn.Module):
 
 
 class AlphaZeroNet(nn.Module):
-    """AlphaZero双头网络架构（策略头+价值头）"""
 
-    def __init__(self, num_res_blocks=20, action_size=33344):
+    def __init__(self, num_res_blocks=5, action_size=33344):
         super().__init__()
 
-        # ----------------- 主干网络 -----------------
-        # 输入层：5通道棋盘 -> 256通道
-        self.input_conv = nn.Conv2d(
-            in_channels=5,  # 输入通道：黑棋、白棋、障碍、当前玩家为黑则置1否则置0、当前玩家为白则置1否则置0
-            out_channels=256,
-            kernel_size=3,
-            padding=1,
-            bias=False
-        )
+        self.input_conv = nn.Conv2d(5, 256, kernel_size=3, padding=1, bias=False)  # <- 修改处
         self.input_bn = nn.BatchNorm2d(256)
 
-        # 残差块堆叠
+        # 残差块
         self.res_blocks = nn.Sequential(*[ResidualBlock(256) for _ in range(num_res_blocks)])
 
-        # ----------------- 策略头 -----------------
-        # 策略卷积：256通道 -> 2通道
-        self.policy_conv = nn.Conv2d(
-            in_channels=256,
-            out_channels=2,  # 输出移动起始点和方向信息
-            kernel_size=1,  # 1x1卷积融合通道信息
-            bias=False
-        )
+        # 策略头
+        self.policy_conv = nn.Conv2d(256, 2, kernel_size=1, bias=False)
         self.policy_bn = nn.BatchNorm2d(2)
+        self.policy_fc = nn.Linear(2 * 8 * 8, action_size)
 
-        # 策略全连接：2x8x8 -> 动作空间
-        self.policy_fc = nn.Linear(in_features=2 * 8 * 8, out_features=action_size)
-
-        # ----------------- 价值头 -----------------
-        # 价值卷积：256通道 -> 1通道
+        # 价值头
         self.value_conv = nn.Conv2d(256, 1, kernel_size=1, bias=False)
         self.value_bn = nn.BatchNorm2d(1)
-
-        # 价值全连接
-        self.value_fc1 = nn.Linear(1 * 8 * 8, 256)  # 展平后处理
-        self.value_fc2 = nn.Linear(256, 1)  # 最终标量输出
+        self.value_fc1 = nn.Linear(1 * 8 * 8, 256)
+        self.value_fc2 = nn.Linear(256, 1)
 
     def forward(self, x):
         """
@@ -94,3 +74,15 @@ class AlphaZeroNet(nn.Module):
         value = torch.tanh(v)  # 压缩到[-1, 1]
 
         return policy, value
+
+    def predict(self, state):
+
+        self.eval()
+        with torch.no_grad():
+            # 转换为PyTorch张量并调整维度
+            state_tensor = torch.tensor(state, dtype=torch.float32)
+            state_tensor = state_tensor.permute(2, 0, 1).unsqueeze(0)  # HWC -> NCHW
+            if next(self.parameters()).is_cuda:
+                state_tensor = state_tensor.cuda()
+            log_pi, v = self(state_tensor)
+            return torch.exp(log_pi).cpu().numpy()[0], v.cpu().numpy()[0][0]

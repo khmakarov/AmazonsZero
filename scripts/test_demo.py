@@ -1,13 +1,14 @@
 import numpy as np
-import amazons_core
+from Amazons import GameCore
 
 
 def main():
-    game = amazons_core.GameCore()
-    print(game.stringRepresentation())
-    game1 = amazons_core.GameCore(game)
-    game1.step(999)
-    print(game1.stringRepresentation())
+    print("a")
+    game = GameCore()
+    print(isinstance(np.array(game.get_state()), np.ndarray))
+    valids, valids_idx = game.get_legal_actions()
+    print(isinstance(valids_idx, np.ndarray))
+    print(isinstance(valids, np.ndarray))
 
 
 if __name__ == "__main__":
