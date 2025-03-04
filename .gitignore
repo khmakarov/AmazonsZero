@@ -1,5 +1,6 @@
 .vscode
 data
+model/checkpoint
 scripts/prompt.txt
 AmazonsZero.egg-info
 *.pyc
