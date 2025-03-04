@@ -5,3 +5,4 @@ scripts/prompt.txt
 AmazonsZero.egg-info
 *.pyc
 *__pycache__
+*__init__.py

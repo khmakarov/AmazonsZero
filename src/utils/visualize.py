@@ -1,16 +1,16 @@
 import tkinter as tk
 from tkinter import ttk
 import numpy as np
+from database import AmazonsDatabase
 
 
 class AmazonsVisualizer:
 
-    def __init__(self, episode_history):
+    def __init__(self, game_id: int):
         self.root = tk.Tk()
         self.root.title("亚马逊棋对弈回放")
-
-        # 初始化参数
-        self.history = episode_history
+        self.db = AmazonsDatabase()
+        self.history = self.db.load_game(game_id)
         self.current_step = 0
         self.cell_size = 70  # 单元格尺寸
         self.piece_radius = 25  # 棋子半径
@@ -47,6 +47,15 @@ class AmazonsVisualizer:
         # 初始绘制
         self.update_step_label()
         self.draw_board()
+
+    @classmethod
+    def from_recent_game(cls):
+        """快速加载最近对局"""
+        db = AmazonsDatabase()
+        games = db.query_games(limit=1)
+        if not games:
+            raise ValueError("没有找到历史对局")
+        return cls(games[0]["game_id"])
 
     # ---------- 核心绘制方法 ----------
     def draw_board(self):
