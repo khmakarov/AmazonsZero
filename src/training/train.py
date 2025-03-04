@@ -4,7 +4,7 @@ import torch.optim as optim
 import numpy as np
 import random
 from core.python.mcts import MCTS
-from model.net import AlphaZeroNet
+from core.python.net import AlphaZeroNet
 from Amazons import GameCore
 from src.utils.visualize import AmazonsVisualizer
 import os
@@ -78,7 +78,7 @@ class Trainer:
             # 自我对弈生成数据
             eps_data = []
             for _ in range(self.num_eps):
-                eps_data += self.execute_episode_visual()
+                eps_data += self.execute_episode()
             self.train_examples.extend(eps_data)
 
             # 训练神经网络
@@ -123,9 +123,9 @@ class Args:
     lr = 0.001  # 学习率
     batch_size = 2048  # 训练批次大小
     num_iters = 3  # 训练总迭代次数
-    num_eps = 3  # 每迭代自我对弈次数
-    checkpoint_freq = 2  # 保存间隔
-    checkpoint_dir = "../model/checkpoint"
+    num_eps = 1  # 每迭代自我对弈次数
+    checkpoint_freq = 1  # 保存间隔
+    checkpoint_dir = "../../model/checkpoint"
     load_model = None  # 预训练模型路径
 
 
