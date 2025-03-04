@@ -1,13 +1,13 @@
 # train.py
+import os
 import torch
 import torch.optim as optim
 import numpy as np
 import random
 from core.python.mcts import MCTS
 from core.python.net import AlphaZeroNet
+from src.utils.database import AmazonsDatabase
 from Amazons import GameCore
-from src.utils.visualize import AmazonsVisualizer
-import os
 
 TOTAL_ACTIONS = 33344
 
@@ -25,6 +25,7 @@ class Trainer:
         self.num_iters = args.num_iters
         self.num_eps = args.num_eps
         self.checkpoint_dir = args.checkpoint_dir
+        self.db = AmazonsDatabase()
         os.makedirs(self.checkpoint_dir, exist_ok=True)
 
     def _init_net(self):
@@ -62,13 +63,12 @@ class Trainer:
             next_state.step(action_index)
             ended = next_state.is_terminal()
             action = self.game.index2action(action_index)
-            print(action)
             episode_data.append([state, action])
             if ended != 0:
-                print(next_state.debug())
                 episode_data.append([next_state, None])
-                visualizer = AmazonsVisualizer(episode_data)
-                visualizer.run()
+                result = "黑胜" if ended == 1 else "白胜"
+                game_id = self.db.save_game(episode_data, result)
+                print(game_id)
                 return [(x[0], x[1], ended) for x in examples]
             state = next_state
 
@@ -78,7 +78,7 @@ class Trainer:
             # 自我对弈生成数据
             eps_data = []
             for _ in range(self.num_eps):
-                eps_data += self.execute_episode()
+                eps_data += self.execute_episode_visual()
             self.train_examples.extend(eps_data)
 
             # 训练神经网络
