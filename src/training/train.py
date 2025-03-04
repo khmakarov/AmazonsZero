@@ -41,14 +41,33 @@ class Trainer:
         while True:
             pi = self.mcts.getActionProb(state)
             examples.append([state, pi, None])
+            action_index = np.random.choice(len(pi), p=pi)
+            next_state = GameCore(state)
+            next_state.step(action_index)
+            ended = next_state.is_terminal()
+            if ended != 0:
+                return [(x[0], x[1], ended) for x in examples]
+            state = next_state
+
+    def execute_episode_visual(self):
+        examples = []
+        episode_data = []
+        state = GameCore(self.game)
+        while True:
+            pi = self.mcts.getActionProb(state)
+            examples.append([state, pi, None])
 
             action_index = np.random.choice(len(pi), p=pi)
             next_state = GameCore(state)
             next_state.step(action_index)
             ended = next_state.is_terminal()
-            print(self.game.index2action(action_index))
+            action = self.game.index2action(action_index)
+            print(action)
+            episode_data.append([state, action])
             if ended != 0:
-                visualizer = AmazonsVisualizer(examples)
+                print(next_state.debug())
+                episode_data.append([next_state, None])
+                visualizer = AmazonsVisualizer(episode_data)
                 visualizer.run()
                 return [(x[0], x[1], ended) for x in examples]
             state = next_state
@@ -59,7 +78,7 @@ class Trainer:
             # 自我对弈生成数据
             eps_data = []
             for _ in range(self.num_eps):
-                eps_data += self.execute_episode()
+                eps_data += self.execute_episode_visual()
             self.train_examples.extend(eps_data)
 
             # 训练神经网络
@@ -103,9 +122,9 @@ class Args:
     cpuct = 1.0  # 探索系数
     lr = 0.001  # 学习率
     batch_size = 2048  # 训练批次大小
-    num_iters = 1000  # 训练总迭代次数
-    num_eps = 100  # 每迭代自我对弈次数
-    checkpoint_freq = 50  # 保存间隔
+    num_iters = 3  # 训练总迭代次数
+    num_eps = 3  # 每迭代自我对弈次数
+    checkpoint_freq = 2  # 保存间隔
     checkpoint_dir = "../model/checkpoint"
     load_model = None  # 预训练模型路径
 

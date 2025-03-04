@@ -14,14 +14,13 @@ class AmazonsVisualizer:
         self.current_step = 0
         self.cell_size = 80  # 增大单元格尺寸
         self.piece_radius = 25  # 增大棋子半径
-        self.block_radius = 20  # 障碍半径
+        self.block_radius = 25  # 障碍半径
 
-        # 创建主画布
         self.canvas = tk.Canvas(
             self.root,
-            width=self.cell_size * 8,
-            height=self.cell_size * 8,
-            bg="#DEB887"  # 木质棋盘颜色
+            width=self.left_margin + self.cell_size * 8 + 20,  # 总宽度 = 左边距 + 棋盘 + 右边距
+            height=self.top_margin + self.cell_size * 8 + 20,  # 总高度 = 顶部边距 + 棋盘 + 底部边距
+            bg="#DEB887"
         )
         self.canvas.grid(row=0, column=0, padx=10, pady=10)
 
@@ -51,23 +50,55 @@ class AmazonsVisualizer:
         self.draw_board()
 
     def draw_board(self):
-        """绘制棋盘基础网格"""
         self.canvas.delete("all")
 
-        # 绘制棋盘网格
+        # 增加边距参数
+        self.left_margin = 40  # 左侧边距（显示行标签）
+        self.top_margin = 40  # 顶部边距（显示列标签）
+
+        # 调整画布实际绘制区域
+        board_width = self.cell_size * 8
+        board_height = self.cell_size * 8
+
+        # 绘制棋盘网格（偏移到边距内部）
         for i in range(9):
             line_pos = i * self.cell_size
-            self.canvas.create_line(0, line_pos, self.cell_size * 8, line_pos)  # 水平线
-            self.canvas.create_line(line_pos, 0, line_pos, self.cell_size * 8)  # 垂直线
+            # 水平线（考虑顶部边距）
+            self.canvas.create_line(self.left_margin, self.top_margin + line_pos, self.left_margin + board_width, self.top_margin + line_pos)
+            # 垂直线（考虑左侧边距）
+            self.canvas.create_line(self.left_margin + line_pos, self.top_margin, self.left_margin + line_pos, self.top_margin + board_height)
 
-        # 绘制坐标标签
-        for i in range(8):
-            # 列坐标 (A-H)
-            self.canvas.create_text(i * self.cell_size + self.cell_size // 2, self.cell_size * 8 - 15, text=chr(65 + i))
-            # 行坐标 (1-8)
-            self.canvas.create_text(15, i * self.cell_size + self.cell_size // 2, text=str(8 - i))
+        # 绘制坐标标签（左上角为原点）
+        # -------------------------------
+        # 列标签（A-H，显示在棋盘顶部边距内）
+        for x in range(8):
+            label_x = self.left_margin + x * self.cell_size + self.cell_size // 2
+            label_y = self.top_margin // 2  # 顶部边距居中
 
-        # 绘制当前状态
+            self.canvas.create_text(
+                label_x,
+                label_y,
+                text=chr(65 + x),  # A-H
+                anchor="center",  # 中心对齐
+                font=("Arial", 14, "bold"),
+                fill="#333333"
+            )
+
+        # 行标签（1-8，显示在棋盘左侧边距内）
+        for y in range(8):
+            label_x = self.left_margin // 2  # 左侧边距居中
+            label_y = self.top_margin + y * self.cell_size + self.cell_size // 2
+
+            self.canvas.create_text(
+                label_x,
+                label_y,
+                text=str(y + 1),  # 1-8（左上角为0行）
+                anchor="center",  # 中心对齐
+                font=("Arial", 14, "bold"),
+                fill="#333333"
+            )
+
+        # 绘制当前状态（调整绘制偏移）
         self.draw_state()
 
     def draw_state(self):
@@ -78,28 +109,17 @@ class AmazonsVisualizer:
         for y in range(8):
             for x in range(8):
                 cell = grid[y][x]
-                cx = x * self.cell_size + self.cell_size // 2
-                cy = y * self.cell_size + self.cell_size // 2
-
-                # 绘制障碍（蓝色圆形）
-                if cell[2] == 1:
-                    self.canvas.create_oval(
-                        cx - self.block_radius,
-                        cy - self.block_radius,
-                        cx + self.block_radius,
-                        cy + self.block_radius,
-                        fill="#4169E1",  # 皇家蓝
-                        outline="black"
-                    )
-
-                # 绘制黑棋（黑色圆形）
+                cx = self.left_margin + x * self.cell_size + self.cell_size // 2
+                cy = self.top_margin + y * self.cell_size + self.cell_size // 2
+                # 黑棋
                 if cell[0] == 1:
-                    self.canvas.create_oval(cx - self.piece_radius, cy - self.piece_radius, cx + self.piece_radius, cy + self.piece_radius, fill="black", outline="gold", width=2)
-
-                # 绘制白棋（白色圆形）
+                    self.canvas.create_oval(cx - self.piece_radius, cy - self.piece_radius, cx + self.piece_radius, cy + self.piece_radius, fill="black", width=2)
+                # 白棋
                 if cell[1] == 1:
-                    self.canvas.create_oval(cx - self.piece_radius, cy - self.piece_radius, cx + self.piece_radius, cy + self.piece_radius, fill="white", outline="gold", width=2)
-
+                    self.canvas.create_oval(cx - self.piece_radius, cy - self.piece_radius, cx + self.piece_radius, cy + self.piece_radius, fill="white", width=2)
+                #障碍
+                if cell[2] == 1:
+                    self.canvas.create_oval(cx - self.block_radius, cy - self.block_radius, cx + self.block_radius, cy + self.block_radius, fill="#4169E1", width=2)
         if self.current_step > 0:
             prev_action = self.history[self.current_step - 1][1]
             if prev_action is not None:
@@ -109,7 +129,6 @@ class AmazonsVisualizer:
         """高亮显示动作"""
         from_pos, to_pos, block_pos = action
 
-        # 转换坐标
         fx = (from_pos % 8) * self.cell_size + self.cell_size // 2
         fy = (from_pos // 8) * self.cell_size + self.cell_size // 2
         tx = (to_pos % 8) * self.cell_size + self.cell_size // 2
@@ -117,17 +136,15 @@ class AmazonsVisualizer:
         bx = (block_pos % 8) * self.cell_size + self.cell_size // 2
         by = (block_pos // 8) * self.cell_size + self.cell_size // 2
 
-        # 绘制移动箭头
         self.canvas.create_line(fx, fy, tx, ty, arrow=tk.LAST, fill="#FF4500", width=3, arrowshape=(12, 15, 6))
 
-        # 标记障碍位置
         self.canvas.create_oval(
             bx - self.block_radius,
             by - self.block_radius,
             bx + self.block_radius,
             by + self.block_radius,
             outline="#FFD700",  # 金色边框
-            width=3
+            width=2
         )
 
     def update_step_label(self):
