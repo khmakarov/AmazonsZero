@@ -66,7 +66,7 @@ class Trainer:
             episode_data.append([state, action])
             if ended != 0:
                 episode_data.append([next_state, None])
-                result = "黑胜" if ended == 1 else "白胜"
+                result = "黑胜" if ended == 1 and next_state.current_player == 0 else "白胜"
                 game_id = self.db.save_game(episode_data, result)
                 print(game_id)
                 return [(x[0], x[1], ended) for x in examples]
