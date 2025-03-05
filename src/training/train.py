@@ -15,10 +15,11 @@ TOTAL_ACTIONS = 33344
 class Trainer:
 
     def __init__(self, args):
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.args = args
         self.game = GameCore()
         self.nnet = self._init_net()
-        self.optimizer = optim.Adam(self.nnet.parameters(), lr=args.lr)
+        self.optimizer = optim.Adam(self.nnet.parameters(), lr=args.lr, weight_decay=1e-4)
         self.mcts = MCTS(self.nnet, args)
         self.train_examples = []
         self.batch_size = args.batch_size
@@ -29,8 +30,7 @@ class Trainer:
         os.makedirs(self.checkpoint_dir, exist_ok=True)
 
     def _init_net(self):
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        nnet = AlphaZeroNet().to(device)
+        nnet = AlphaZeroNet().to(self.device)
         if self.args.load_model:
             checkpoint = torch.load(self.args.load_model)
             nnet.load_state_dict(checkpoint['model'])
@@ -63,6 +63,7 @@ class Trainer:
             next_state.step(action_index)
             ended = next_state.is_terminal()
             action = self.game.index2action(action_index)
+            print(action)
             episode_data.append([state, action])
             if ended != 0:
                 episode_data.append([next_state, None])
@@ -93,16 +94,16 @@ class Trainer:
     def train(self, batch):
         self.nnet.train()
         states, pis, vs = list(zip(*batch))
-        states = torch.tensor(np.array([s.get_state() for s in states]), dtype=torch.float32).permute(0, 3, 1, 2)  # NHWC -> NCHW
-        target_pis = torch.tensor(np.array(pis), dtype=torch.float32)
-        target_vs = torch.tensor(np.array(vs), dtype=torch.float32).unsqueeze(1)
-
+        states = torch.tensor(np.array([s.get_state() for s in states]), dtype=torch.float32)
+        states = states.permute(0, 3, 1, 2).to(self.device)  # NHWC -> NCHW
+        target_pis = torch.tensor(np.array(pis), dtype=torch.float32).to(self.device)  # 移动到设备
+        target_vs = torch.tensor(np.array(vs), dtype=torch.float32).unsqueeze(1).to(self.device)  # 移动到设备
         # 前向计算
         out_pi, out_v = self.nnet(states)
         loss_pi = -torch.sum(target_pis * out_pi) / target_pis.size()[0]
         loss_v = torch.mean((target_vs - out_v)**2)
         total_loss = loss_pi + loss_v
-
+        print(f"Loss: {total_loss.item()}, Policy Loss: {loss_pi.item()}, Value Loss: {loss_v.item()}")
         # 反向传播
         self.optimizer.zero_grad()
         total_loss.backward()
@@ -118,13 +119,13 @@ class Trainer:
 
 
 class Args:
-    numMCTSSims = 128  # MCTS模拟次数
+    numMCTSSims = 1024  # MCTS模拟次数
     cpuct = 1.0  # 探索系数
     lr = 0.001  # 学习率
-    batch_size = 2048  # 训练批次大小
-    num_iters = 3  # 训练总迭代次数
-    num_eps = 1  # 每迭代自我对弈次数
-    checkpoint_freq = 1  # 保存间隔
+    batch_size = 256  # 训练批次大小
+    num_iters = 1000  # 训练总迭代次数
+    num_eps = 128  # 每迭代自我对弈次数
+    checkpoint_freq = 50  # 保存间隔
     checkpoint_dir = "../../model/checkpoint"
     load_model = None  # 预训练模型路径
 

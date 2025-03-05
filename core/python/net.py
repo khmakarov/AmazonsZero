@@ -22,7 +22,7 @@ class ResidualBlock(nn.Module):
 
 class AlphaZeroNet(nn.Module):
 
-    def __init__(self, num_res_blocks=5, action_size=33344):
+    def __init__(self, num_res_blocks=20, action_size=33344):
         super().__init__()
 
         self.input_conv = nn.Conv2d(5, 256, kernel_size=3, padding=1, bias=False)  # <- 修改处
@@ -60,7 +60,7 @@ class AlphaZeroNet(nn.Module):
         p = self.policy_conv(x)
         p = self.policy_bn(p)
         p = F.relu(p, inplace=True)
-        p = p.view(p.size(0), -1)  # 展平：(batch, 2*8*8)
+        p = p.reshape(p.size(0), -1)  # 展平：(batch, 2*8*8)
         p = self.policy_fc(p)
         policy = F.log_softmax(p, dim=1)  # 对数概率
 
@@ -76,13 +76,10 @@ class AlphaZeroNet(nn.Module):
         return policy, value
 
     def predict(self, state):
-
         self.eval()
         with torch.no_grad():
-            # 转换为PyTorch张量并调整维度
             state_tensor = torch.tensor(state, dtype=torch.float32)
             state_tensor = state_tensor.permute(2, 0, 1).unsqueeze(0)  # HWC -> NCHW
-            if next(self.parameters()).is_cuda:
-                state_tensor = state_tensor.cuda()
+            state_tensor = state_tensor.to(next(self.parameters()).device)  # 仅移动一次到设备
             log_pi, v = self(state_tensor)
             return torch.exp(log_pi).cpu().numpy()[0], v.cpu().numpy()[0][0]
