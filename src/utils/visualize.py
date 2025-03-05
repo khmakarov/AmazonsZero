@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 import numpy as np
-from database import AmazonsDatabase
+from src.utils.database import AmazonsDatabase
 
 
 class AmazonsVisualizer:
