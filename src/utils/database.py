@@ -9,7 +9,7 @@ from Amazons import GameCore
 
 class AmazonsDatabase:
 
-    def __init__(self, db_path: str = "amazons.db"):
+    def __init__(self, db_path: str = "E:/VSCPython/AmazonsZero/data/game/amazons.db"):
         self.db_path = Path(db_path)
         self._init_db()
 
@@ -129,7 +129,7 @@ class AmazonsDatabase:
     # --------- 序列化方法 ---------
     def _serialize_state(self, state) -> bytes:
         """序列化游戏状态为压缩字节流"""
-        state_data = {"board": np.array(state.get_state()).tolist(), "black": int(state.black), "white": int(state.white), "blocks": int(state.blocks), "current_player": state.current_player}
+        state_data = {"black": int(state.black), "white": int(state.white), "blocks": int(state.blocks), "current_player": state.current_player}
         return zlib.compress(json.dumps(state_data).encode())
 
     def _deserialize_state(self, data: bytes):
