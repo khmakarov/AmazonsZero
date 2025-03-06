@@ -3,7 +3,6 @@ import json
 import zlib
 from pathlib import Path
 from typing import List, Tuple, Dict
-import numpy as np
 from Amazons import GameCore
 
 
@@ -47,11 +46,7 @@ class AmazonsDatabase:
         return conn
 
     # --------- 核心操作方法 ---------
-    def save_game(
-        self,
-        episode_data: List[Tuple[object, tuple]],  # (state, action)
-        result: str
-    ) -> int:
+    def save_game(self, episode_data, result) -> int:
         """
         保存完整对局到数据库
         返回插入的game_id
@@ -66,7 +61,7 @@ class AmazonsDatabase:
 
             # 批量插入步骤数据
             batch_data = []
-            for step_idx, (state, action) in enumerate(episode_data):
+            for step_idx, (state, action, _) in enumerate(episode_data):
                 batch_data.append((game_id, step_idx, self._serialize_state(state), json.dumps(action) if action else None, state.current_player))
 
             conn.executemany(
