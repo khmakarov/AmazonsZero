@@ -39,25 +39,6 @@ class Trainer:
             nnet.load_state_dict(checkpoint['model'])
         return nnet
 
-    def execute_episode(self):
-        episode_data = []
-        state = GameCore(self.game)
-        mcts = MCTS(self.nnet, Args())
-        while True:
-            pi = mcts.getActionProb(state)
-            action_index = np.random.choice(len(pi), p=pi)
-            next_state = GameCore(state)
-            next_state.step(action_index)
-            ended = next_state.is_terminal()
-            action = self.game.index2action(action_index)
-            episode_data.append([state, action, pi])
-            if ended != 0:
-                episode_data.append([next_state, None, None])
-                result = "黑胜" if ended == 1 and next_state.current_player == 0 else "白胜"
-                print(self.db.save_game(episode_data, result))
-                return [(x[0], x[2], ended) for x in episode_data[:-1]]
-            state = next_state
-
     @staticmethod
     def _serialize_state(state) -> bytes:
         """序列化游戏状态为压缩字节流"""
