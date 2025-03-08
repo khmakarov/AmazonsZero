@@ -1,19 +1,15 @@
-import logging
 import math
 import numpy as np
 from Amazons import GameCore
 
-EPS = 1e-8
-TOTAL_ACTIONS = 33344
-
-log = logging.getLogger(__name__)
-
 
 class MCTS():
 
-    def __init__(self, nnet, args):
+    def __init__(self, nnet, cfg):
         self.nnet = nnet
-        self.args = args
+        self.cpuct = cfg.cpuct
+        self.num_simulations = cfg.num_simulations
+        self.total_actions = cfg.TOTAL_ACTIONS
 
         self.Qsa = {}  # 存储每个状态的Q值数组
         self.Nsa = {}  # 存储每个状态的访问计数数组
@@ -23,13 +19,13 @@ class MCTS():
         self.Vs = {}  # 存储有效动作掩码
 
     def getActionProb(self, game, temp=1):
-        for _ in range(self.args.numMCTSSims):
+        for _ in range(self.num_simulations):
             self.search(game)
 
         s = game.stringRepresentation()
         _, valids_idx = game.get_legal_actions()
         n = valids_idx[0]
-        counts = np.zeros(TOTAL_ACTIONS, dtype=np.int32)
+        counts = np.zeros(self.total_actions, dtype=np.int32)
         if s in self.Nsa:
             valids = valids_idx[1:n + 1]
             counts[valids] = self.Nsa[s][valids]
@@ -63,26 +59,22 @@ class MCTS():
             if sum_Ps_s > 0:
                 self.Ps[s] /= sum_Ps_s
             else:
-                log.error("All valid moves were masked, doing a workaround.")
                 self.Ps[s] = self.Ps[s] + valids
                 self.Ps[s] /= np.sum(self.Ps[s])
 
-            self.Qsa[s] = np.zeros(TOTAL_ACTIONS, dtype=np.float32)  # 修改点1
-            self.Nsa[s] = np.zeros(TOTAL_ACTIONS, dtype=np.int32)  # 修改点1
+            self.Qsa[s] = np.zeros(self.total_actions, dtype=np.float32)
+            self.Nsa[s] = np.zeros(self.total_actions, dtype=np.int32)
             self.Vs[s] = np.array(valids_idx[1:n + 1], dtype=np.int32)
             self.Ns[s] = 0
             return -v
 
         valid_actions = self.Vs[s]
-        if len(valid_actions) == 0:
-            log.error("No valid actions at state %s", s)
-            return 0
         qs = self.Qsa[s][valid_actions]
         ps = self.Ps[s][valid_actions]
         ns = self.Nsa[s][valid_actions]
 
         sqrt_Ns = math.sqrt(self.Ns[s])
-        u_values = qs + self.args.cpuct * ps * sqrt_Ns / (1 + ns + EPS)
+        u_values = qs + self.cpuct * ps * sqrt_Ns / (1 + ns)
         best_index = np.argmax(u_values)
         best_act = valid_actions[best_index]
 
