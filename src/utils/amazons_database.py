@@ -19,10 +19,9 @@ class AmazonsDatabase:
                 '''
                 CREATE TABLE IF NOT EXISTS games (
                     game_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP0,
                     result TEXT CHECK(result IN ('黑胜', '白胜', '未结束')),
-                    total_steps INTEGER NOT NULL,
-                    additional_info TEXT  -- 可扩展字段
+                    total_steps INTEGER NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS moves (
                     move_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -45,23 +44,23 @@ class AmazonsDatabase:
         conn.execute("PRAGMA journal_mode=WAL;")
         return conn
 
-    # --------- 核心操作方法 ---------
     def save_game(self, episode_data, result) -> int:
         """
         保存完整对局到数据库
         返回插入的game_id
         """
         with self._get_connection() as conn:
-            # 插入元数据
-            cursor = conn.execute('''
+            cursor = conn.execute(
+                '''
                 INSERT INTO games (result, total_steps)
                 VALUES (?, ?)
-            ''', (result, len(episode_data)))
+            ''', (result, len(episode_data))
+            )
             game_id = cursor.lastrowid
 
             # 批量插入步骤数据
             batch_data = []
-            for step_idx, (state, action, _) in enumerate(episode_data):
+            for step_idx, (state, action) in enumerate(episode_data):
                 batch_data.append((game_id, step_idx, self._serialize_state(state), json.dumps(action) if action else None, state.current_player))
 
             conn.executemany(
