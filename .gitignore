@@ -1,6 +1,7 @@
 .vscode
 data
-model/checkpoint
+model
+outputs
 scripts
 AmazonsZero.egg-info
 *.pyc
