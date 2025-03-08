@@ -1,7 +1,7 @@
 .vscode
 data
 model/checkpoint
-scripts/prompt.txt
+scripts
 AmazonsZero.egg-info
 *.pyc
 *__pycache__
