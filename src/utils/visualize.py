@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 import numpy as np
-from src.utils.database import AmazonsDatabase
+from src.utils.amazons_database import AmazonsDatabase
 
 
 class AmazonsVisualizer:
@@ -20,7 +20,9 @@ class AmazonsVisualizer:
         self.board_size = self.cell_size * 8
 
         # 初始化画布（增加边距空间）
-        self.canvas = tk.Canvas(self.root, width=self.left_margin + self.board_size + 20, height=self.top_margin + self.board_size + 20, bg="#DEB887")
+        self.canvas = tk.Canvas(
+            self.root, width=self.left_margin + self.board_size + 20, height=self.top_margin + self.board_size + 20, bg="#DEB887"
+        )
         self.canvas.grid(row=0, column=0, padx=10, pady=10)
 
         # 控制面板
@@ -105,15 +107,26 @@ class AmazonsVisualizer:
 
                 # 绘制障碍（蓝色圆形）
                 if cell[2] == 1:
-                    self.canvas.create_oval(cx - self.block_radius, cy - self.block_radius, cx + self.block_radius, cy + self.block_radius, fill="#4169E1", outline="black")
+                    self.canvas.create_oval(
+                        cx - self.block_radius,
+                        cy - self.block_radius,
+                        cx + self.block_radius,
+                        cy + self.block_radius,
+                        fill="#4169E1",
+                        outline="black"
+                    )
 
                 # 绘制黑棋
                 if cell[0] == 1:
-                    self.canvas.create_oval(cx - self.piece_radius, cy - self.piece_radius, cx + self.piece_radius, cy + self.piece_radius, fill="black", width=2)
+                    self.canvas.create_oval(
+                        cx - self.piece_radius, cy - self.piece_radius, cx + self.piece_radius, cy + self.piece_radius, fill="black", width=2
+                    )
 
                 # 绘制白棋
                 if cell[1] == 1:
-                    self.canvas.create_oval(cx - self.piece_radius, cy - self.piece_radius, cx + self.piece_radius, cy + self.piece_radius, fill="white", width=2)
+                    self.canvas.create_oval(
+                        cx - self.piece_radius, cy - self.piece_radius, cx + self.piece_radius, cy + self.piece_radius, fill="white", width=2
+                    )
 
         # 高亮上一步动作
         if self.current_step > 0 and self.history[self.current_step - 1][1] is not None:
@@ -136,7 +149,9 @@ class AmazonsVisualizer:
 
         # 标记障碍位置
         bx, by = pos_to_coord(block_pos)
-        self.canvas.create_oval(bx - self.block_radius, by - self.block_radius, bx + self.block_radius, by + self.block_radius, outline="#FFD700", width=3)
+        self.canvas.create_oval(
+            bx - self.block_radius, by - self.block_radius, bx + self.block_radius, by + self.block_radius, outline="#FFD700", width=3
+        )
 
     # ---------- 控制逻辑 ----------
     def update_step_label(self):
