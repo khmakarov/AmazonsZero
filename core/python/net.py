@@ -22,7 +22,7 @@ class ResidualBlock(nn.Module):
 
 class AlphaZeroNet(nn.Module):
 
-    def __init__(self, num_res_blocks=20, action_size=33344):
+    def __init__(self, num_res_blocks=40, action_size=33344):
         super().__init__()
 
         self.input_conv = nn.Conv2d(5, 256, kernel_size=3, padding=1, bias=False)  # <- 修改处
