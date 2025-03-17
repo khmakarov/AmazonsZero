@@ -2,7 +2,7 @@
 import json
 import random
 import zlib
-from src.utils.amazons_database import AmazonsDatabase
+from src.utils.database import AmazonsDatabase
 from Amazons import GameCore
 
 

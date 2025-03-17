@@ -1,13 +1,12 @@
 # train.py
 import os
-
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-import json
-import zlib
-import torch
-import numpy as np
-import multiprocessing
 import hydra
+import json
+import multiprocessing
+import numpy as np
+import torch
+import zlib
+from torch.optim import Adam
 from Amazons import GameCore
 from core.python.mcts import MCTS
 from core.python.net import AlphaZeroNet
@@ -23,13 +22,14 @@ class Trainer:
         # 初始化基础组件
         self.device = torch.device("cuda")
         self.game = GameCore()
-        self.training = cfg.training
-        self.mcts = cfg.mcts
         self.load_model = cfg.load_model
-        self.win_rate = cfg.evaluator.win_rat
-        # 模块化组件
+        self.mcts = cfg.mcts
         self.nnet = self._init_net()
-        self.optimizer = torch.optim.Adam(self.nnet.parameters(), lr=cfg.training.lr, weight_decay=cfg.training.weight_decay)
+        self.training = cfg.training
+        self.win_rate = cfg.evaluator.win_rate
+        # 模块化组件
+
+        self.optimizer = Adam(self.nnet.parameters(), lr=cfg.training.lr, weight_decay=cfg.training.weight_decay)
         self.ckpt_mgr = CheckpointManager()
         self.data_mgr = DataManager()
         self.evaluator = Evaluator(cfg)
@@ -43,24 +43,22 @@ class Trainer:
         if self.load_model:
             checkpoint = torch.load(self.load_model)
             nnet.load_state_dict(checkpoint['model'])
+            nnet.load_state_dict(checkpoint['optimizer'])
         return nnet
 
     def learn(self):
         for i in range(1, self.training.num_iters + 1):
             print(f"Iteration {i}")
             self.iteration = i
-
-            episodes = self._generate_episodes()
-            self._process_episodes(episodes)
-
+            self._process_episodes(self._generate_episodes())
             if len(self.data_mgr.train_data) >= self.training.batch_size:
                 self._train_step()
-
             if i % self.training.eval_freq == 0 and i > 1:
                 self._evaluation_step()
 
     def _generate_episodes(self):
         nnet_state_dict = self.nnet.to("cpu").state_dict()
+        self.nnet.to(self.device)
         with multiprocessing.Pool(processes=os.cpu_count()) as pool:
             tasks = [(nnet_state_dict, self.mcts)] * self.training.num_eps
             return pool.starmap(self.execute_episode_worker, tasks)
@@ -97,16 +95,15 @@ class Trainer:
             best_model_path = latest_path
             print(f"Current model rejected. Win rate: {win_rate:.2f}")
 
-        self.writer.add_scalar('Evaluation/win_rate', win_rate, self.iteration)
         checkpoint = torch.load(best_model_path)
         self.nnet.load_state_dict(checkpoint['model'])
         self.optimizer.load_state_dict(checkpoint['optimizer'])
+        self.writer.add_scalar('Evaluation/win_rate', win_rate, self.iteration)
 
     def train(self, batch):
-        self.nnet.to(self.device)
         self.nnet.train()
-        states, pis, vs = list(zip(*batch))
 
+        states, pis, vs = list(zip(*batch))
         states = torch.tensor(np.array([s.get_state() for s in states]), dtype=torch.float32)
         states = states.permute(0, 3, 1, 2).to(self.device)  # NHWC -> NCHW
         target_pis = torch.tensor(np.array(pis), dtype=torch.float32).to(self.device)
@@ -168,8 +165,13 @@ class Trainer:
         self.writer.close()
 
 
+def configure_tensorflow():
+    os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+
+
 @hydra.main(version_base=None, config_path="../../", config_name="config")
 def main(cfg) -> None:
+    configure_tensorflow()
     trainer = Trainer(cfg)
     trainer.learn()
 
