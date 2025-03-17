@@ -1,7 +1,6 @@
 .vscode
 .venv
 core/cpp/build
-core/cpp/CMakeLists.txt
 model
 outputs
 scripts
