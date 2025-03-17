@@ -20,25 +20,28 @@ std::string GameCore::stringRepresentation() const
 std::array<std::array<std::array<int, 5>, 8>, 8> GameCore::get_state() const
 {
 	std::array<std::array<std::array<int, 5>, 8>, 8> state{};
-	for (int y = 0; y < 8; ++y)
+	const int player_layer = current_player == 0 ? 3 : 4;
+	for (int y = 0, cnt = 0; y < 8; ++y)
 	{
 		for (int x = 0; x < 8; ++x)
 		{
-			int pos = y * 8 + x; // 计算位位置
-			uint64_t mask = 1ULL << pos;
-			state[y][x][0] = (black & mask) ? 1 : 0;
-			state[y][x][1] = (white & mask) ? 1 : 0;
-			state[y][x][2] = (blocks & mask) ? 1 : 0;
-			state[y][x][3] = (current_player == 0) ? 1 : 0;
-			state[y][x][4] = (current_player == 1) ? 1 : 0;
+			uint64_t mask = 1ULL << (cnt++);
+			auto &cell = state[y][x];
+			if (blocks & mask)
+				cell[2] = 1;
+			else if (white & mask)
+				cell[1] = 1;
+			else if (black & mask)
+				cell[0] = 1;
+			cell[player_layer] = 1;
 		}
 	}
 	return state;
 }
 
-std::pair<std::array<bool, TOTAL_ACTIONS>, std::array<int, 0x800>> GameCore::get_legal_actions()
+std::pair<std::array<bool, TOTAL_ACTIONS>, std::array<int, POSSIBLE_ACTIONS>> GameCore::get_legal_actions()
 {
-	std::array<std::tuple<uint8_t, uint8_t, uint8_t>, 0x800> actions;
+	std::array<MoveAction, POSSIBLE_ACTIONS> actions;
 	const std::array<uint64_t, 4> my_pieces = unpack_pieces(current_player ? white : black);
 	int count = 0;
 	for (const auto &from : my_pieces)
@@ -60,25 +63,25 @@ std::pair<std::array<bool, TOTAL_ACTIONS>, std::array<int, 0x800>> GameCore::get
 
 void GameCore::step(const int action_index)
 {
-	const std::tuple<uint8_t, uint8_t, uint8_t> &unpacked_action = action_list[action_index];
+	const MoveAction &unpacked_action = action_list[action_index];
 	const std::array<uint64_t, 3> action = unpack_action(unpacked_action);
 	apply_move(action[0], action[1]);
-	place_block(action[2]);
+	blocks |= action[2];
 	current_player ^= 1;
 }
 
 int GameCore::is_terminal() const
 {
-	if (generate_moves(black) & generate_moves(white))
+	if (generate_moves(black) && generate_moves(white))
 		return 0;
 	if (generate_moves(current_player ? white : black))
 		return 1;
 	return -1;
 }
 
-std::tuple<uint8_t, uint8_t, uint8_t> GameCore::index2action(const int index)
+MoveAction GameCore::index2action(const int index)
 {
-	const std::tuple<uint8_t, uint8_t, uint8_t> &action = action_list[index];
+	const MoveAction &action = action_list[index];
 	return {std::get<0>(action), std::get<1>(action), std::get<2>(action)};
 }
 
@@ -111,17 +114,12 @@ void GameCore::apply_move(const uint64_t from, const uint64_t to)
 	piece_to_backpack = to;
 }
 
-void GameCore::place_block(const uint64_t block)
-{
-	blocks |= block;
-}
-
 void GameCore::restore_action()
 {
 	current_player ? white = (white ^ piece_to_backpack) | piece_from_backpack : black = (black ^ piece_to_backpack) | piece_from_backpack;
 }
 
-std::tuple<uint8_t, uint8_t, uint8_t> GameCore::pack_action(const uint64_t from, const uint64_t to, const uint64_t block)
+MoveAction GameCore::pack_action(const uint64_t from, const uint64_t to, const uint64_t block)
 {
 	return {lowest1_bit(from), lowest1_bit(to), lowest1_bit(block)};
 }
@@ -151,7 +149,5 @@ uint64_t GameCore::lowest1(const uint64_t x)
 
 int GameCore::lowest1_bit(const uint64_t x)
 {
-	unsigned long index;
-	_BitScanForward64(&index, x);
-	return static_cast<int>(index);
+	return static_cast<int>(__builtin_ctzll(x));
 }
