@@ -3,7 +3,7 @@ import json
 import random
 import zlib
 from src.utils.database import AmazonsDatabase
-from Amazons import GameCore
+from core.cpp.build.Amazons import GameCore
 
 
 class DataManager:

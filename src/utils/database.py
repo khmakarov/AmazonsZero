@@ -3,7 +3,7 @@ import json
 import zlib
 from pathlib import Path
 from typing import List, Tuple, Dict
-from Amazons import GameCore
+from core.cpp.build.Amazons import GameCore
 
 
 class AmazonsDatabase:

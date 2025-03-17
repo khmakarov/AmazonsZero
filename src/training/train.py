@@ -7,7 +7,7 @@ import numpy as np
 import torch
 import zlib
 from torch.optim import Adam
-from Amazons import GameCore
+from core.cpp.build.Amazons import GameCore
 from core.python.mcts import MCTS
 from core.python.net import AlphaZeroNet
 from evaluate import Evaluator

@@ -1,6 +1,6 @@
 import math
 import numpy as np
-from Amazons import GameCore
+from core.cpp.build.Amazons import GameCore
 
 
 class MCTS():

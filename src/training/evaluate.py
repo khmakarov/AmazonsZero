@@ -4,9 +4,9 @@ import torch
 import numpy as np
 import multiprocessing
 from datetime import datetime
+from core.cpp.build.Amazons import GameCore
 from core.python.mcts import MCTS
 from core.python.net import AlphaZeroNet
-from Amazons import GameCore
 
 
 class Evaluator:
