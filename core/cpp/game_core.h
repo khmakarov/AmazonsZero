@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "action_index.h"
 #include <format>
 #include <functional>

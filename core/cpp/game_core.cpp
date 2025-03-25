@@ -1,4 +1,4 @@
-﻿#include "game_core.h"
+#include "game_core.h"
 
 GameCore::GameCore() : current_player(0),
 					   black(0x0000000000810024),

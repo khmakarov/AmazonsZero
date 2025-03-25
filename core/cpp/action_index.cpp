@@ -1,4 +1,4 @@
-﻿#include "action_index.h"
+#include "action_index.h"
 void load_actions()
 {
 	int count = 0;
