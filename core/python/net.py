@@ -11,11 +11,16 @@ class ResidualBlock(nn.Module):
         self.bn1 = nn.BatchNorm2d(channels)
         self.conv2 = nn.Conv2d(channels, channels, kernel_size=3, padding=1)
         self.bn2 = nn.BatchNorm2d(channels)
+        self.se = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1), nn.Conv2d(channels, channels // 16, kernel_size=1), nn.ReLU(),
+            nn.Conv2d(channels // 16, channels, kernel_size=1), nn.Sigmoid()
+        )
 
     def forward(self, x):
         residual = x
         x = F.relu(self.bn1(self.conv1(x)))
         x = self.bn2(self.conv2(x))
+        x = x * self.se(x)
         x += residual
         return F.relu(x)
 
@@ -34,15 +39,14 @@ class AlphaZeroNet(nn.Module):
         # 策略头
         self.policy_conv = nn.Conv2d(256, 2, kernel_size=1, bias=False)
         self.policy_bn = nn.BatchNorm2d(2)
-        self.policy_fc = nn.Linear(2 * 8 * 8, action_size)
+        self.policy_fc = nn.Sequential(nn.Linear(2 * 8 * 8, 512), nn.ReLU(), nn.Linear(512, action_size))
 
         # 价值头
         self.value_conv = nn.Conv2d(256, 1, kernel_size=1, bias=False)
         self.value_bn = nn.BatchNorm2d(1)
-        self.value_fc1 = nn.Linear(1 * 8 * 8, 256)
-        self.value_fc2 = nn.Linear(256, 1)
+        self.value_fc = nn.Sequential(nn.Linear(1 * 8 * 8, 512), nn.ReLU(), nn.Linear(512, 256), nn.ReLU(), nn.Linear(256, 1))
 
-    def forward(self, x):
+    def forward(self, x, legal_actions_mask=None):
         """
         前向传播
         输入形状： (batch_size, 5, 8, 8)
@@ -62,6 +66,11 @@ class AlphaZeroNet(nn.Module):
         p = F.relu(p, inplace=True)
         p = p.reshape(p.size(0), -1)  # 展平：(batch, 2*8*8)
         p = self.policy_fc(p)
+
+        if legal_actions_mask is not None:
+            legal_actions_mask = torch.as_tensor(legal_actions_mask, dtype=torch.bool).to("cuda")
+            p = p.masked_fill(~legal_actions_mask, -1e9)
+
         policy = F.log_softmax(p, dim=1)  # 对数概率
 
         # ----------------- 价值头 -----------------
@@ -69,17 +78,16 @@ class AlphaZeroNet(nn.Module):
         v = self.value_bn(v)
         v = F.relu(v, inplace=True)
         v = v.view(v.size(0), -1)  # 展平：(batch, 1*8*8)
-        v = F.relu(self.value_fc1(v))
-        v = self.value_fc2(v)
+        v = self.value_fc(v)
         value = torch.tanh(v)  # 压缩到[-1, 1]
 
         return policy, value
 
-    def predict(self, state):
+    def predict(self, state, legal_actions_mask):
         self.eval()
         with torch.no_grad():
             state_tensor = torch.tensor(state, dtype=torch.float32)
             state_tensor = state_tensor.permute(2, 0, 1).unsqueeze(0)  # HWC -> NCHW
             state_tensor = state_tensor.to(next(self.parameters()).device)  # 仅移动一次到设备
-            log_pi, v = self(state_tensor)
+            log_pi, v = self(state_tensor, legal_actions_mask)
             return torch.exp(log_pi).cpu().numpy()[0], v.cpu().numpy()[0][0]
