@@ -7,7 +7,7 @@ from datetime import datetime
 class CheckpointManager:
 
     def __init__(self):
-        self.checkpoint_dir = "E:/VSCPython/AmazonsZero/model/checkpoint"
+        self.checkpoint_dir = "/home/khmakarov/AmazonsZero/model/checkpoint"
         self.best_model = None
 
     def save(self, model, optimizer, win_rate=float('nan')):
