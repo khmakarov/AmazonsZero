@@ -5,16 +5,19 @@ GameCore::GameCore() : current_player(0),
 					   white(0x2400810000000000),
 					   blocks(0) {}
 
-std::string GameCore::stringRepresentation() const
+size_t GameCore::stringRepresentation() const
 {
-	size_t hash = 0;
-	std::hash<uint64_t> hasher;
-	hash ^= hasher(black) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
-	hash ^= hasher(white) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
-	hash ^= hasher(blocks) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
-	hash ^= std::hash<int>()(current_player);
-	std::string s = std::format("{}", hash);
-	return s;
+	XXH64_state_t *state = XXH64_createState();
+
+	XXH64_reset(state, 0);
+	XXH64_update(state, &black, sizeof(black));
+	XXH64_update(state, &white, sizeof(white));
+	XXH64_update(state, &blocks, sizeof(blocks));
+	XXH64_update(state, &current_player, sizeof(current_player));
+	XXH64_hash_t hash = XXH64_digest(state);
+	XXH64_freeState(state);
+
+	return hash;
 }
 
 std::array<std::array<std::array<int, 5>, 8>, 8> GameCore::get_state() const
@@ -39,7 +42,7 @@ std::array<std::array<std::array<int, 5>, 8>, 8> GameCore::get_state() const
 	return state;
 }
 
-std::pair<std::array<bool, TOTAL_ACTIONS>, std::array<int, POSSIBLE_ACTIONS>> GameCore::get_legal_actions()
+std::array<int, POSSIBLE_ACTIONS> GameCore::get_legal_actions()
 {
 	std::array<MoveAction, POSSIBLE_ACTIONS> actions;
 	const std::array<uint64_t, 4> my_pieces = unpack_pieces(current_player ? white : black);
@@ -110,8 +113,7 @@ uint64_t GameCore::ray_cast(const uint64_t from, const std::pair<uint64_t, int> 
 void GameCore::apply_move(const uint64_t from, const uint64_t to)
 {
 	current_player ? white = (white ^ from) | to : black = (black ^ from) | to;
-	piece_from_backpack = from;
-	piece_to_backpack = to;
+	piece_from_backpack = from, piece_to_backpack = to;
 }
 
 void GameCore::restore_action()
