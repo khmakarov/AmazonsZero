@@ -1,11 +1,11 @@
 # train.py
 import os
 import hydra
-import json
-import multiprocessing
+import lz4.frame
 import numpy as np
 import torch
-import zlib
+import torch.multiprocessing as mp
+import pickle
 from torch.optim import Adam
 from core.cpp.build.Amazons import GameCore
 from core.python.mcts import MCTS
@@ -28,7 +28,6 @@ class Trainer:
         self.training = cfg.training
         self.win_rate = cfg.evaluator.win_rate
         # 模块化组件
-
         self.optimizer = Adam(self.nnet.parameters(), lr=cfg.training.lr, weight_decay=cfg.training.weight_decay)
         self.ckpt_mgr = CheckpointManager()
         self.data_mgr = DataManager()
@@ -51,24 +50,27 @@ class Trainer:
             print(f"Iteration {i}")
             self.iteration = i
             self._process_episodes(self._generate_episodes())
+            self.data_mgr.flush_visual_data()
             if len(self.data_mgr.train_data) >= self.training.batch_size:
                 self._train_step()
-            if i % self.training.eval_freq == 0 and i > 1:
+            if i % self.training.eval_freq == 0:
                 self._evaluation_step()
 
     def _generate_episodes(self):
         nnet_state_dict = self.nnet.to("cpu").state_dict()
         self.nnet.to(self.device)
-        with multiprocessing.Pool(processes=os.cpu_count()) as pool:
+        with mp.Pool(processes=os.cpu_count()) as pool:
             tasks = [(nnet_state_dict, self.mcts)] * self.training.num_eps
             return pool.starmap(self.execute_episode_worker, tasks)
 
     def _process_episodes(self, results):
-        for train_data, episode_data, result in results:
-            self.data_mgr.add_episode_data(episode_data, result)
+        print("自对弈数据生成完毕")
+        for train_data, visual_data, result in results:
             self.data_mgr.add_train_data(train_data)
+            self.data_mgr.add_visual_data(visual_data, result)
 
     def _train_step(self):
+        print("该迭代数据保存完毕")
         batch = self.data_mgr.sample_batch(self.training.batch_size)
         total_loss, loss_pi, loss_v = self.train(batch)
 
@@ -77,6 +79,7 @@ class Trainer:
         self.writer.add_scalar('Loss/value', loss_v, self.iteration)
 
     def _evaluation_step(self):
+        print("该迭代数据训练完毕")
         latest_path = self.ckpt_mgr.get_latest_checkpoint()
         current_path = self.ckpt_mgr.save(self.nnet, self.optimizer)
 
@@ -84,10 +87,10 @@ class Trainer:
             print(f"Initial model saved: {current_path}")
             return
 
-        win_rate = self.evaluator.evaluate_models(current_path, latest_path)
+        win_rate = self.evaluator.evaluate(current_path, latest_path)
         os.remove(current_path)
 
-        if win_rate > self.win_rate:
+        if win_rate >= self.win_rate:
             best_model_path = self.ckpt_mgr.save(self.nnet, self.optimizer, win_rate)
             self.data_mgr.clear_train_data()
             print(f"New best model: {best_model_path} (Win rate: {win_rate:.2f})")
@@ -103,13 +106,15 @@ class Trainer:
     def train(self, batch):
         self.nnet.train()
 
-        states, pis, vs = list(zip(*batch))
-        states = torch.tensor(np.array([s.get_state() for s in states]), dtype=torch.float32)
+        states, pis, valids_idx, vs = list(zip(*batch))
+        states = np.array([s.get_state() for s in states])
+        states = torch.tensor(states, dtype=torch.float32)
         states = states.permute(0, 3, 1, 2).to(self.device)  # NHWC -> NCHW
         target_pis = torch.tensor(np.array(pis), dtype=torch.float32).to(self.device)
+        valids_idx = torch.as_tensor(valids_idx, device='cuda')
         target_vs = torch.tensor(np.array(vs), dtype=torch.float32).unsqueeze(1).to(self.device)
 
-        out_pi, out_v = self.nnet(states)
+        out_pi, out_v = self.nnet(states, valids_idx)
         loss_pi = -torch.sum(target_pis * out_pi) / target_pis.size()[0]
         loss_v = torch.mean((target_vs - out_v)**2)
         total_loss = loss_pi + loss_v
@@ -129,7 +134,7 @@ class Trainer:
     def _serialize_state(state) -> bytes:
         """序列化游戏状态为压缩字节流"""
         state_data = {"black": int(state.black), "white": int(state.white), "blocks": int(state.blocks), "current_player": state.current_player}
-        return zlib.compress(json.dumps(state_data).encode())
+        return lz4.frame.compress(pickle.dumps(state_data))
 
     @staticmethod
     def execute_episode_worker(nnet_state_dict, cfg):
@@ -143,38 +148,39 @@ class Trainer:
             episode_data = []
             state = GameCore()
             while True:
-                pi = mcts.getActionProb(state)
+                pi, valids_idx = mcts.getActionProb(state)
                 action_index = np.random.choice(len(pi), p=pi)
                 next_state = GameCore(state)
                 next_state.step(action_index)
                 ended = next_state.is_terminal()
                 action = state.index2action(action_index)
-                episode_data.append([Trainer._serialize_state(state), action, pi])
+                episode_data.append([Trainer._serialize_state(state), action, pi, valids_idx])
                 if ended != 0:
                     result = "黑胜" if (ended == 1 and next_state.current_player == 0) or (ended == 0 and next_state.current_player == 1) else "白胜"
-                    return (  # 返回训练数据和原始数据
-                        [(x[0], x[2], ended) for x in episode_data],  # 训练样本
-                        episode_data + [[Trainer._serialize_state(next_state), None, None]],  # 完整对弈数据
-                        result
-                    )
+                    print(" 对局结束")
+                    break
                 state = next_state
+            return (
+                [(x[0], x[2], x[3], ended) for x in episode_data],  # 训练样本
+                episode_data + [[Trainer._serialize_state(next_state), None, None, None]],  # 回放样本
+                result
+            )
         finally:
+            print(" 子进程返回")
             torch.cuda.empty_cache()
 
     def __del__(self):
         self.writer.close()
-
-
-def configure_tensorflow():
-    os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+        torch.cuda.empty_cache()
 
 
 @hydra.main(version_base=None, config_path="../../", config_name="config")
 def main(cfg) -> None:
-    configure_tensorflow()
     trainer = Trainer(cfg)
     trainer.learn()
 
 
 if __name__ == "__main__":
+    os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+    mp.set_start_method('spawn', force=True)
     main()
