@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
 
 class ResidualBlock(nn.Module):
@@ -27,7 +28,7 @@ class ResidualBlock(nn.Module):
 
 class AlphaZeroNet(nn.Module):
 
-    def __init__(self, num_res_blocks=40, action_size=33344):
+    def __init__(self, num_res_blocks=30, action_size=33344):
         super().__init__()
 
         self.input_conv = nn.Conv2d(5, 256, kernel_size=3, padding=1, bias=False)  # <- 修改处
@@ -46,7 +47,7 @@ class AlphaZeroNet(nn.Module):
         self.value_bn = nn.BatchNorm2d(1)
         self.value_fc = nn.Sequential(nn.Linear(1 * 8 * 8, 512), nn.ReLU(), nn.Linear(512, 256), nn.ReLU(), nn.Linear(256, 1))
 
-    def forward(self, x, legal_actions_mask=None):
+    def forward(self, x, valids_idx=None):
         """
         前向传播
         输入形状： (batch_size, 5, 8, 8)
@@ -67,9 +68,21 @@ class AlphaZeroNet(nn.Module):
         p = p.reshape(p.size(0), -1)  # 展平：(batch, 2*8*8)
         p = self.policy_fc(p)
 
-        if legal_actions_mask is not None:
-            legal_actions_mask = torch.as_tensor(legal_actions_mask, dtype=torch.bool).to("cuda")
-            p = p.masked_fill(~legal_actions_mask, -1e9)
+        if valids_idx is not None:
+            batch_size = x.size(0)
+            lengths = valids_idx[:, 0]  # (batch_size,)
+            max_length = lengths.max().item()
+
+            indices = valids_idx[:, 1:max_length + 1]  # (batch_size, max_length)
+            batch_idx = torch.arange(batch_size, device=x.device)[:, None].expand(-1, max_length)
+
+            # 关键修改：通过lengths生成有效位置掩码
+            valid_pos_mask = torch.arange(max_length, device=x.device)[None, :] < lengths[:, None]
+
+            valids = torch.zeros((batch_size, 33344), dtype=torch.bool, device=x.device)
+            valids[(batch_idx[valid_pos_mask], indices[valid_pos_mask])] = True
+
+            p = p.masked_fill(~valids, -1e9)
 
         policy = F.log_softmax(p, dim=1)  # 对数概率
 
@@ -83,11 +96,12 @@ class AlphaZeroNet(nn.Module):
 
         return policy, value
 
-    def predict(self, state, legal_actions_mask):
+    def predict(self, state, valids_idx):
         self.eval()
         with torch.no_grad():
-            state_tensor = torch.tensor(state, dtype=torch.float32)
-            state_tensor = state_tensor.permute(2, 0, 1).unsqueeze(0)  # HWC -> NCHW
-            state_tensor = state_tensor.to(next(self.parameters()).device)  # 仅移动一次到设备
-            log_pi, v = self(state_tensor, legal_actions_mask)
+            state = np.array(state.get_state())
+            state = torch.tensor(state, dtype=torch.float32)
+            state = state.permute(2, 0, 1).unsqueeze(0).to('cuda')  # HWC -> NCHW
+            valids_idx = torch.as_tensor(valids_idx, device='cuda').unsqueeze(0)
+            log_pi, v = self(state, valids_idx)
             return torch.exp(log_pi).cpu().numpy()[0], v.cpu().numpy()[0][0]
