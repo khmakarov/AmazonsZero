@@ -1,6 +1,8 @@
+#database.py
 import sqlite3
 import json
-import zlib
+import lz4.frame
+import pickle
 from pathlib import Path
 from typing import List, Tuple, Dict
 from core.cpp.build.Amazons import GameCore
@@ -8,7 +10,7 @@ from core.cpp.build.Amazons import GameCore
 
 class AmazonsDatabase:
 
-    def __init__(self, db_path: str = "E:/VSCPython/AmazonsZero/data/game/amazons.db"):
+    def __init__(self, db_path: str = "/home/khmakarov/AmazonsZero/data/game/amazons.db"):
         self.db_path = Path(db_path)
         self._init_db()
 
@@ -19,7 +21,7 @@ class AmazonsDatabase:
                 '''
                 CREATE TABLE IF NOT EXISTS games (
                     game_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP0,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                     result TEXT CHECK(result IN ('黑胜', '白胜', '未结束')),
                     total_steps INTEGER NOT NULL
                 );
@@ -44,34 +46,39 @@ class AmazonsDatabase:
         conn.execute("PRAGMA journal_mode=WAL;")
         return conn
 
-    def save_game(self, episode_data, result) -> int:
+    def save_games(self, games_data):
         """
-        保存完整对局到数据库
-        返回插入的game_id
+        批量插入多个对局数据
+        games_data: List[Tuple(episode_data, result)]
         """
         with self._get_connection() as conn:
-            cursor = conn.execute(
-                '''
-                INSERT INTO games (result, total_steps)
-                VALUES (?, ?)
-            ''', (result, len(episode_data))
-            )
-            game_id = cursor.lastrowid
+            game_ids = []
+            batch_moves = []
 
-            # 批量插入步骤数据
-            batch_data = []
-            for step_idx, (state, action) in enumerate(episode_data):
-                batch_data.append((game_id, step_idx, self._serialize_state(state), json.dumps(action) if action else None, state.current_player))
+            # 首先生成所有game记录
+            for episode_data, result in games_data:
+                cursor = conn.execute(
+                    '''INSERT INTO games (result, total_steps)
+                    VALUES (?, ?)''', (result, len(episode_data))
+                )
+                game_id = cursor.lastrowid
+                game_ids.append(game_id)
 
-            conn.executemany(
-                '''
-                INSERT INTO moves 
-                (game_id, step_number, board_state, action, player)
-                VALUES (?, ?, ?, ?, ?)
-            ''', batch_data
-            )
+                # 准备步骤数据
+                for step_idx, (state, action) in enumerate(episode_data):
+                    batch_moves.append((game_id, step_idx, state, json.dumps(action) if action else None, 1 if step_idx % 2 else 0))
 
-            return game_id
+            # 批量插入所有步骤数据
+            if batch_moves:
+                conn.executemany(
+                    '''
+                    INSERT INTO moves 
+                    (game_id, step_number, board_state, action, player)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', batch_moves
+                )
+
+            return game_ids
 
     def load_game(self, game_id: int) -> List[Tuple[object, tuple]]:
         """
@@ -120,17 +127,10 @@ class AmazonsDatabase:
             cursor = conn.execute(query, params)
             return [{"game_id": row[0], "timestamp": row[1], "result": row[2], "steps": row[3]} for row in cursor.fetchall()]
 
-    # --------- 序列化方法 ---------
-    def _serialize_state(self, state) -> bytes:
-        """序列化游戏状态为压缩字节流"""
-        state_data = {"black": int(state.black), "white": int(state.white), "blocks": int(state.blocks), "current_player": state.current_player}
-        return zlib.compress(json.dumps(state_data).encode())
-
     def _deserialize_state(self, data: bytes):
         """从字节流重建游戏状态"""
-        state_data = json.loads(zlib.decompress(data).decode())
 
-        # 重建GameCore实例
+        state_data = pickle.loads(lz4.frame.decompress(data))
         state = GameCore()
         state.current_player = state_data["current_player"]
         state.black = state_data["black"]
