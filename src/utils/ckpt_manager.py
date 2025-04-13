@@ -1,4 +1,4 @@
-#check_manager.py
+#ckpt_manager.py
 import os
 import torch
 from datetime import datetime
@@ -17,7 +17,7 @@ class CheckpointManager:
 
         torch.save({'model': model.state_dict(), 'optimizer': optimizer.state_dict(), 'win_rate': win_rate}, filepath)
 
-        if not self.best_model or win_rate > self.best_model[1]:
+        if not self.best_model or win_rate >= self.best_model[1]:
             self.best_model = (filepath, win_rate)
 
         return filepath
