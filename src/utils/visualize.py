@@ -8,7 +8,7 @@ class AmazonsVisualizer:
 
     def __init__(self, game_id: int):
         self.root = tk.Tk()
-        self.root.title("亚马逊棋对弈回放")
+        self.root.title("Amazons Chess Replay")
         self.db = AmazonsDatabase()
         self.history = self.db.load_game(game_id)
         self.current_step = 0
