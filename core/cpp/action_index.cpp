@@ -15,17 +15,20 @@ void load_actions()
 	}
 }
 
-std::array<int, POSSIBLE_ACTIONS> generate_mask(const std::pair<std::array<MoveAction, POSSIBLE_ACTIONS>, int> &legal_actions)
+py::array_t<int> generate_mask_np(const std::pair<std::array<MoveAction, POSSIBLE_ACTIONS>, int> &legal_actions)
 {
 	int count = 0;
+	std::vector<int> data(POSSIBLE_ACTIONS, -1);
+	py::array_t<int> mask_index(POSSIBLE_ACTIONS, data.data());
+	auto buf = mask_index.mutable_unchecked<1>();
 	auto [actions, counts] = legal_actions;
-	std::array<int, POSSIBLE_ACTIONS> mask_index{counts};
+	buf[0] = counts;
 	for (const auto &action : actions)
 	{
 		if (count == counts)
 			break;
 		if (auto it = action_map.find(static_cast<size_t>(std::get<0>(action)) << 16 | (static_cast<size_t>(std::get<1>(action)) << 8) | static_cast<size_t>(std::get<2>(action))); it != action_map.end())
-			mask_index[++count] = static_cast<int>(it->second);
+			buf[++count] = static_cast<int>(it->second);
 	}
 	return mask_index;
 }
