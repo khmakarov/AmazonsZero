@@ -1,11 +1,7 @@
 #pragma once
-#include "action_index.h"
-#include <functional>
 #include <xxhash.h>
-#include <pybind11/stl.h>
-#include <pybind11/numpy.h>
-#include <pybind11/pybind11.h>
-namespace py = pybind11;
+#include <functional>
+#include "action_index.h"
 class GameCore
 {
 public:
@@ -16,10 +12,10 @@ public:
 	uint64_t black, white, blocks;
 
 	size_t stringRepresentation() const;
-	std::array<std::array<std::array<int, 5>, 8>, 8> get_state() const; // 将对局状态输入python端
-	std::array<int, POSSIBLE_ACTIONS> get_legal_actions();				// 返回当前棋盘状态所有合法动作的掩码
-	void step(int action_index);										// 应用行动
-	int is_terminal() const;											// 0未结束,-1 current_player输,1 current_player赢
+	py::array_t<int> get_state_np() const;	 // 将对局状态输入python端
+	py::array_t<int> get_legal_actions_np(); // 返回当前棋盘状态所有合法动作的掩码
+	void step(int action_index);			 // 应用行动
+	int is_terminal() const;				 // 0未结束,-1 current_player输,1 current_player赢
 	MoveAction index2action(int index);
 
 private:

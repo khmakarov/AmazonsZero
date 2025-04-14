@@ -20,29 +20,30 @@ size_t GameCore::stringRepresentation() const
 	return hash;
 }
 
-std::array<std::array<std::array<int, 5>, 8>, 8> GameCore::get_state() const
+py::array_t<int> GameCore::get_state_np() const
 {
-	std::array<std::array<std::array<int, 5>, 8>, 8> state{};
-	const int player_layer = current_player == 0 ? 3 : 4;
+	const int player_layer = (current_player == 0) ? 3 : 4;
+	std::vector<int> data(8 * 8 * 5, 0);
+	py::array_t<int> state({8, 8, 5}, data.data());
+	auto buf = state.mutable_unchecked<3>();
 	for (int y = 0, cnt = 0; y < 8; ++y)
 	{
 		for (int x = 0; x < 8; ++x)
 		{
-			uint64_t mask = 1ULL << (cnt++);
-			auto &cell = state[y][x];
+			const uint64_t mask = 1ULL << (cnt++);
 			if (blocks & mask)
-				cell[2] = 1;
+				buf(y, x, 2) = 1; // 障碍层
 			else if (white & mask)
-				cell[1] = 1;
+				buf(y, x, 1) = 1; // 白棋层
 			else if (black & mask)
-				cell[0] = 1;
-			cell[player_layer] = 1;
+				buf(y, x, 0) = 1; // 黑棋层
+			buf(y, x, player_layer) = 1;
 		}
 	}
 	return state;
 }
 
-std::array<int, POSSIBLE_ACTIONS> GameCore::get_legal_actions()
+py::array_t<int> GameCore::get_legal_actions_np()
 {
 	std::array<MoveAction, POSSIBLE_ACTIONS> actions;
 	const std::array<uint64_t, 4> my_pieces = unpack_pieces(current_player ? white : black);
@@ -61,7 +62,7 @@ std::array<int, POSSIBLE_ACTIONS> GameCore::get_legal_actions()
 			restore_action();
 		}
 	}
-	return generate_mask({actions, count});
+	return generate_mask_np({actions, count});
 }
 
 void GameCore::step(const int action_index)
