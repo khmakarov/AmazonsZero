@@ -1,9 +1,6 @@
 #data_manager.py
-import lz4.frame
-import pickle
 import random
 from src.utils.database import AmazonsDatabase
-from core.cpp.build.Amazons import GameCore
 
 
 class DataManager:
