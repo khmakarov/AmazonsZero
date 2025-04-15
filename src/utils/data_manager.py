@@ -18,7 +18,7 @@ class DataManager:
         self.visual_buffer.append((visual_data, result))
 
     def add_train_data(self, train_data):
-        processed = [(DataManager._deserialize_state(s_bytes), pi, valids_idx, ended) for s_bytes, pi, valids_idx, ended in train_data]
+        processed = [(s_bytes, pi, valids_idx, ended) for s_bytes, pi, valids_idx, ended in train_data]
         self.train_data.extend(processed)
 
     def flush_visual_data(self):
@@ -33,14 +33,3 @@ class DataManager:
 
     def sample_batch(self, batch_size):
         return random.sample(self.train_data, batch_size)
-
-    @staticmethod
-    def _deserialize_state(data: bytes):
-        """从字节流重建游戏状态"""
-        state_data = pickle.loads(lz4.frame.decompress(data))
-        state = GameCore()
-        state.current_player = state_data["current_player"]
-        state.black = state_data["black"]
-        state.white = state_data["white"]
-        state.blocks = state_data["blocks"]
-        return state
