@@ -96,11 +96,10 @@ class AmazonsVisualizer:
     def draw_state(self):
         """绘制当前状态的棋子和障碍"""
         state = self.history[self.current_step][0]
-        grid = np.array(state.get_state())
 
         for y in range(8):
             for x in range(8):
-                cell = grid[y][x]
+                cell = state[y][x]
                 # 计算实际绘制坐标（考虑边距）
                 cx = self.left_margin + x * self.cell_size + self.cell_size // 2
                 cy = self.top_margin + y * self.cell_size + self.cell_size // 2
