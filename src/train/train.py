@@ -107,12 +107,11 @@ class Trainer:
         self.nnet.train()
 
         states, pis, valids_idx, vs = list(zip(*batch))
-        states = np.array([s.get_state() for s in states])
-        states = torch.tensor(states, dtype=torch.float32)
-        states = states.permute(0, 3, 1, 2).to(self.device)  # NHWC -> NCHW
+        states = torch.as_tensor(np.stack(states), dtype=torch.float32)
+        states = states.permute(0, 3, 1, 2).to(self.device)
         target_pis = torch.tensor(np.array(pis), dtype=torch.float32).to(self.device)
-        valids_idx = torch.as_tensor(valids_idx, device='cuda')
         target_vs = torch.tensor(np.array(vs), dtype=torch.float32).unsqueeze(1).to(self.device)
+        valids_idx = torch.as_tensor(np.stack(valids_idx), dtype=torch.int, device=self.device)
 
         out_pi, out_v = self.nnet(states, valids_idx)
         loss_pi = -torch.sum(target_pis * out_pi) / target_pis.size()[0]
@@ -129,12 +128,6 @@ class Trainer:
                 self.writer.add_histogram(f'Gradients/{name}', param.grad, self.iteration)
 
         return total_loss.item(), loss_pi.item(), loss_v.item()
-
-    @staticmethod
-    def _serialize_state(state) -> bytes:
-        """序列化游戏状态为压缩字节流"""
-        state_data = {"black": int(state.black), "white": int(state.white), "blocks": int(state.blocks), "current_player": state.current_player}
-        return lz4.frame.compress(pickle.dumps(state_data))
 
     @staticmethod
     def execute_episode_worker(nnet_state_dict, cfg):
@@ -154,7 +147,7 @@ class Trainer:
                 next_state.step(action_index)
                 ended = next_state.is_terminal()
                 action = state.index2action(action_index)
-                episode_data.append([Trainer._serialize_state(state), action, pi, valids_idx])
+                episode_data.append([state.get_state_np(), action, pi, valids_idx])
                 if ended != 0:
                     result = "黑胜" if (ended == 1 and next_state.current_player == 0) or (ended == 0 and next_state.current_player == 1) else "白胜"
                     print(" 对局结束")
@@ -162,7 +155,7 @@ class Trainer:
                 state = next_state
             return (
                 [(x[0], x[2], x[3], ended) for x in episode_data],  # 训练样本
-                episode_data + [[Trainer._serialize_state(next_state), None, None, None]],  # 回放样本
+                episode_data + [[next_state.get_state_np(), None, None, None]],  # 回放样本
                 result
             )
         finally:
