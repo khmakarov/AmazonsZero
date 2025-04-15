@@ -22,15 +22,16 @@ class MCTS():
         for _ in range(self.num_simulations):
             self.search(game)
 
-        s = game.stringRepresentation()
+        s = game.compute_state_hash()
         valids_idx = game.get_legal_actions_np()
-        n = valids_idx[0]
         counts = np.zeros(self.total_actions, dtype=np.int32)
+
         if s in self.Nsa:
-            valids = valids_idx[1:n + 1]
+            valids = valids_idx[1:valids_idx[0] + 1]
             counts[valids] = self.Nsa[s][valids]
         else:
-            counts[valids_idx[1:n + 1]] = 0
+            counts[valids_idx[1:valids_idx[0] + 1]] = 0
+
         if temp == 0:
             probs = np.zeros_like(counts, dtype=np.float32)
             bestA = np.argmax(counts)
@@ -39,15 +40,18 @@ class MCTS():
             probs = np.power(counts, 1.0 / temp)
             probs = probs / np.sum(probs)
 
+        self.clear()
         return probs, valids_idx
 
     def search(self, game):
-        s = game.stringRepresentation()
+
+        s = game.compute_state_hash()
 
         if s not in self.Es:
             self.Es[s] = game.is_terminal()
         if self.Es[s] != 0:
             return -self.Es[s]
+
         if s not in self.Ps:
             valids_idx = game.get_legal_actions_np()
             valids = np.zeros(self.total_actions, dtype=np.bool_)
@@ -86,3 +90,11 @@ class MCTS():
         self.Ns[s] += 1
 
         return -v
+
+    def clear(self):
+        self.Qsa.clear()
+        self.Nsa.clear()
+        self.Ns.clear()
+        self.Ps.clear()
+        self.Es.clear()
+        self.Vs.clear()
