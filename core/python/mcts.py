@@ -23,7 +23,7 @@ class MCTS():
             self.search(game)
 
         s = game.stringRepresentation()
-        valids_idx = game.get_legal_actions()
+        valids_idx = game.get_legal_actions_np()
         n = valids_idx[0]
         counts = np.zeros(self.total_actions, dtype=np.int32)
         if s in self.Nsa:
@@ -49,7 +49,7 @@ class MCTS():
         if self.Es[s] != 0:
             return -self.Es[s]
         if s not in self.Ps:
-            valids_idx = game.get_legal_actions()
+            valids_idx = game.get_legal_actions_np()
             valids = np.zeros(self.total_actions, dtype=np.bool_)
             valids[valids_idx[1:valids_idx[0] + 1]] = True
             self.Ps[s], v = self.nnet.predict(game, valids_idx)
