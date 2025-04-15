@@ -2,10 +2,9 @@
 import sqlite3
 import json
 import lz4.frame
-import pickle
+import numpy as np
 from pathlib import Path
 from typing import List, Tuple, Dict
-from core.cpp.build.Amazons import GameCore
 
 
 class AmazonsDatabase:
@@ -66,6 +65,7 @@ class AmazonsDatabase:
 
                 # 准备步骤数据
                 for step_idx, (state, action) in enumerate(episode_data):
+                    state = lz4.frame.compress(state.tobytes())
                     batch_moves.append((game_id, step_idx, state, json.dumps(action) if action else None, 1 if step_idx % 2 else 0))
 
             # 批量插入所有步骤数据
@@ -97,7 +97,10 @@ class AmazonsDatabase:
             ).fetchall()
 
             episode_data = []
-            for state, action_json in rows:
+            for state_bytes, action_json in rows:
+                decompressed = lz4.frame.decompress(state_bytes)
+                state = np.frombuffer(decompressed, dtype=np.int8)
+                state = state.reshape(8, 8, 5)
                 action = json.loads(action_json) if action_json else None
                 episode_data.append((state, action))
 
