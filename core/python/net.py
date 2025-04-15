@@ -70,17 +70,13 @@ class AlphaZeroNet(nn.Module):
 
         if valids_idx is not None:
             batch_size = x.size(0)
-            lengths = valids_idx[:, 0]  # (batch_size,)
-            max_length = lengths.max().item()
+            max_length = valids_idx[:, 0].max().item()
 
             indices = valids_idx[:, 1:max_length + 1]  # (batch_size, max_length)
             batch_idx = torch.arange(batch_size, device=x.device)[:, None].expand(-1, max_length)
-
-            # 关键修改：通过lengths生成有效位置掩码
-            valid_pos_mask = torch.arange(max_length, device=x.device)[None, :] < lengths[:, None]
-
+            valid_mask = (indices != -1)
             valids = torch.zeros((batch_size, 33344), dtype=torch.bool, device=x.device)
-            valids[(batch_idx[valid_pos_mask], indices[valid_pos_mask])] = True
+            valids[(batch_idx[valid_mask], indices[valid_mask])] = True
 
             p = p.masked_fill(~valids, -1e9)
 
@@ -99,7 +95,7 @@ class AlphaZeroNet(nn.Module):
     def predict(self, state, valids_idx):
         self.eval()
         with torch.no_grad():
-            state = np.array(state.get_state())
+            state = state.get_state_np()
             state = torch.tensor(state, dtype=torch.float32)
             state = state.permute(2, 0, 1).unsqueeze(0).to('cuda')  # HWC -> NCHW
             valids_idx = torch.as_tensor(valids_idx, device='cuda').unsqueeze(0)
