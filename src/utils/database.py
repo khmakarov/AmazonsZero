@@ -97,8 +97,7 @@ class AmazonsDatabase:
             ).fetchall()
 
             episode_data = []
-            for board_state, action_json in rows:
-                state = self._deserialize_state(board_state)
+            for state, action_json in rows:
                 action = json.loads(action_json) if action_json else None
                 episode_data.append((state, action))
 
@@ -126,15 +125,3 @@ class AmazonsDatabase:
         with self._get_connection() as conn:
             cursor = conn.execute(query, params)
             return [{"game_id": row[0], "timestamp": row[1], "result": row[2], "steps": row[3]} for row in cursor.fetchall()]
-
-    def _deserialize_state(self, data: bytes):
-        """从字节流重建游戏状态"""
-
-        state_data = pickle.loads(lz4.frame.decompress(data))
-        state = GameCore()
-        state.current_player = state_data["current_player"]
-        state.black = state_data["black"]
-        state.white = state_data["white"]
-        state.blocks = state_data["blocks"]
-
-        return state
