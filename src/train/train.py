@@ -1,11 +1,9 @@
 # train.py
 import os
 import hydra
-import lz4.frame
 import numpy as np
 import torch
 import torch.multiprocessing as mp
-import pickle
 from torch.optim import Adam
 from core.cpp.build.Amazons import GameCore
 from core.python.mcts import MCTS
@@ -21,7 +19,6 @@ class Trainer:
     def __init__(self, cfg):
         # 初始化基础组件
         self.device = torch.device("cuda")
-        self.game = GameCore()
         self.load_model = cfg.load_model
         self.mcts = cfg.mcts
         self.nnet = self._init_net()
@@ -61,7 +58,10 @@ class Trainer:
         self.nnet.to(self.device)
         with mp.Pool(processes=os.cpu_count()) as pool:
             tasks = [(nnet_state_dict, self.mcts)] * self.training.num_eps
-            return pool.starmap(self.execute_episode_worker, tasks)
+            results = pool.starmap(self.execute_episode_worker, tasks)
+            pool.close()
+            pool.join()
+        return results
 
     def _process_episodes(self, results):
         print("自对弈数据生成完毕")
@@ -86,21 +86,28 @@ class Trainer:
         if not latest_path:
             print(f"Initial model saved: {current_path}")
             return
+        if hasattr(self, 'nnet'):
+            del self.nnet
+            torch.cuda.empty_cache()
 
         win_rate = self.evaluator.evaluate(current_path, latest_path)
-        os.remove(current_path)
+        self.nnet = AlphaZeroNet().to(self.device)
 
         if win_rate >= self.win_rate:
+            checkpoint = torch.load(current_path)
+            self.nnet.load_state_dict(checkpoint['model'])
+            self.optimizer.load_state_dict(checkpoint['optimizer'])
             best_model_path = self.ckpt_mgr.save(self.nnet, self.optimizer, win_rate)
             self.data_mgr.clear_train_data()
             print(f"New best model: {best_model_path} (Win rate: {win_rate:.2f})")
         else:
             best_model_path = latest_path
+            checkpoint = torch.load(best_model_path)
+            self.nnet.load_state_dict(checkpoint['model'])
+            self.optimizer.load_state_dict(checkpoint['optimizer'])
             print(f"Current model rejected. Win rate: {win_rate:.2f}")
 
-        checkpoint = torch.load(best_model_path)
-        self.nnet.load_state_dict(checkpoint['model'])
-        self.optimizer.load_state_dict(checkpoint['optimizer'])
+        os.remove(current_path)
         self.writer.add_scalar('Evaluation/win_rate', win_rate, self.iteration)
 
     def train(self, batch):
@@ -121,11 +128,12 @@ class Trainer:
         self.optimizer.zero_grad()
         total_loss.backward()
         self.optimizer.step()
-
-        for name, param in self.nnet.named_parameters():
-            self.writer.add_histogram(f'Parameters/{name}', param, self.iteration)
-            if param.grad is not None:
-                self.writer.add_histogram(f'Gradients/{name}', param.grad, self.iteration)
+        torch.cuda.empty_cache()
+        if self.iteration % 10 == 0:
+            for name, param in self.nnet.named_parameters():
+                self.writer.add_histogram(f'Parameters/{name}', param, self.iteration)
+                if param.grad is not None:
+                    self.writer.add_histogram(f'Gradients/{name}', param.grad, self.iteration)
 
         return total_loss.item(), loss_pi.item(), loss_v.item()
 
@@ -137,7 +145,6 @@ class Trainer:
             nnet = AlphaZeroNet().to(device)
             nnet.load_state_dict(nnet_state_dict)
             mcts = MCTS(nnet, cfg)
-
             episode_data = []
             state = GameCore()
             while True:
@@ -160,6 +167,7 @@ class Trainer:
             )
         finally:
             print(" 子进程返回")
+            del mcts, nnet, state, next_state
             torch.cuda.empty_cache()
 
     def __del__(self):
