@@ -9,13 +9,12 @@ public:
 	GameCore(const GameCore &) = default;
 
 	int current_player;
-	uint64_t black, white, blocks;
 
-	size_t stringRepresentation() const;
-	py::array_t<int> get_state_np() const;	 // 将对局状态输入python端
-	py::array_t<int> get_legal_actions_np(); // 返回当前棋盘状态所有合法动作的掩码
-	void step(int action_index);			 // 应用行动
-	int is_terminal() const;				 // 0未结束,-1 current_player输,1 current_player赢
+	size_t compute_state_hash() const;
+	py::array_t<int8_t> get_state_np() const; // 将对局状态输入python端
+	py::array_t<int> get_legal_actions_np();  // 返回当前棋盘状态所有合法动作的掩码
+	void step(int action_index);			  // 应用行动
+	int is_terminal() const;				  // 0未结束,-1 current_player输,1 current_player赢
 	MoveAction index2action(int index);
 
 private:
@@ -29,6 +28,7 @@ private:
 		{0x00FEFEFEFEFEFEFE, -7}, // NorthEast
 		{0x7F7F7F7F7F7F7F00, 7},  // SouthWest
 	}};
+	uint64_t black, white, blocks;
 	uint64_t piece_from_backpack = 0, piece_to_backpack = 0;
 
 	uint64_t generate_moves(uint64_t from) const;

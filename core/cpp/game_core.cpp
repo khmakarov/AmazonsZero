@@ -5,7 +5,7 @@ GameCore::GameCore() : current_player(0),
 					   white(0x2400810000000000),
 					   blocks(0) {}
 
-size_t GameCore::stringRepresentation() const
+size_t GameCore::compute_state_hash() const
 {
 	XXH64_state_t *state = XXH64_createState();
 
@@ -20,7 +20,7 @@ size_t GameCore::stringRepresentation() const
 	return hash;
 }
 
-py::array_t<int> GameCore::get_state_np() const
+py::array_t<int8_t> GameCore::get_state_np() const
 {
 	const int player_layer = (current_player == 0) ? 3 : 4;
 	std::vector<int> data(8 * 8 * 5, 0);
