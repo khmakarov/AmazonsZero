@@ -36,7 +36,7 @@ class Trainer:
         if self.load_model:
             checkpoint = torch.load(self.load_model)
             nnet.load_state_dict(checkpoint['model'])
-            nnet.load_state_dict(checkpoint['optimizer'])
+            self.optimizer.load_state_dict(checkpoint['optimizer'])
         return nnet
 
     def learn(self):
