@@ -14,7 +14,7 @@ public:
 	py::array_t<int8_t> get_state_np() const; // 将对局状态输入python端
 	py::array_t<int> get_legal_actions_np();  // 返回当前棋盘状态所有合法动作的掩码
 	void step(int action_index);			  // 应用行动
-	int is_terminal() const;				  // 0未结束,-1 current_player输,1 current_player赢
+	int is_terminal();						  // 0未结束,1 黑方赢,-1 白方赢
 	MoveAction index2action(int index);
 
 private:
