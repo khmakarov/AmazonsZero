@@ -14,7 +14,7 @@ class AmazonsDatabase:
         self._init_db()
 
     def _init_db(self):
-        """初始化数据库表结构"""
+        """初始化数据库表结构（新增iteration和phase列）"""
         with self._get_connection() as conn:
             conn.executescript(
                 '''
@@ -22,14 +22,16 @@ class AmazonsDatabase:
                     game_id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                     result TEXT CHECK(result IN ('黑胜', '白胜', '未结束')),
-                    total_steps INTEGER NOT NULL
+                    total_steps INTEGER NOT NULL,
+                    iteration INTEGER NOT NULL DEFAULT 0,  -- 新增迭代次数列
+                    phase INTEGER CHECK(phase IN (0, 1)) NOT NULL DEFAULT 0  -- 新增阶段列
                 );
                 CREATE TABLE IF NOT EXISTS moves (
                     move_id INTEGER PRIMARY KEY AUTOINCREMENT,
                     game_id INTEGER NOT NULL,
                     step_number INTEGER NOT NULL,
-                    board_state BLOB NOT NULL,  -- 压缩后的棋盘状态
-                    action TEXT,  -- JSON格式: {"from": 12, "to": 28, "block": 35}
+                    board_state BLOB NOT NULL,
+                    action TEXT,
                     player INTEGER CHECK(player IN (0, 1)),
                     FOREIGN KEY (game_id) REFERENCES games(game_id)
                 );
@@ -48,17 +50,17 @@ class AmazonsDatabase:
     def save_games(self, games_data):
         """
         批量插入多个对局数据
-        games_data: List[Tuple(episode_data, result)]
+        games_data: List[Tuple(episode_data, result, iteration, phase)]
         """
         with self._get_connection() as conn:
             game_ids = []
             batch_moves = []
 
             # 首先生成所有game记录
-            for episode_data, result in games_data:
+            for episode_data, result, iteration, phase in games_data:
                 cursor = conn.execute(
-                    '''INSERT INTO games (result, total_steps)
-                    VALUES (?, ?)''', (result, len(episode_data))
+                    '''INSERT INTO games (result, total_steps, iteration, phase)
+                    VALUES (?, ?, ?, ?)''', ("黑胜" if result == 1 else "白胜", len(episode_data), iteration, phase)
                 )
                 game_id = cursor.lastrowid
                 game_ids.append(game_id)
@@ -106,10 +108,15 @@ class AmazonsDatabase:
 
             return episode_data
 
-    def query_games(self, limit: int = 100, result_filter: str = None, start_date: str = None) -> List[Dict]:
-        """查询最近的若干对局元数据"""
+    def query_games(self,
+                    limit: int = 100,
+                    result_filter: str = None,
+                    start_date: str = None,
+                    iteration: int = None,
+                    phase: int = None) -> List[Dict]:
+        """增强查询功能（新增对iteration和phase的过滤）"""
         query = '''
-            SELECT game_id, timestamp, result, total_steps
+            SELECT game_id, timestamp, result, total_steps, iteration, phase
             FROM games
             WHERE 1=1
         '''
@@ -121,10 +128,25 @@ class AmazonsDatabase:
         if start_date:
             query += " AND timestamp >= ?"
             params.append(start_date)
+        if iteration is not None:
+            query += " AND iteration = ?"
+            params.append(iteration)
+        if phase is not None:
+            query += " AND phase = ?"
+            params.append(phase)
 
         query += " ORDER BY timestamp DESC LIMIT ?"
         params.append(limit)
 
         with self._get_connection() as conn:
             cursor = conn.execute(query, params)
-            return [{"game_id": row[0], "timestamp": row[1], "result": row[2], "steps": row[3]} for row in cursor.fetchall()]
+            return [
+                {
+                    "game_id": row[0],
+                    "timestamp": row[1],
+                    "result": row[2],
+                    "steps": row[3],
+                    "iteration": row[4],
+                    "phase": row[5]
+                } for row in cursor.fetchall()
+            ]
