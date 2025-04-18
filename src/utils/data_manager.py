@@ -10,13 +10,13 @@ class DataManager:
         self.visual_buffer = []
         self.train_data = []
 
-    def add_visual_data(self, episode_data, result):
-        visual_data = [(s_bytes, a) for s_bytes, a, _, _ in episode_data]
-        self.visual_buffer.append((visual_data, result))
-
     def add_train_data(self, train_data):
-        processed = [(s_bytes, pi, valids_idx, ended) for s_bytes, pi, valids_idx, ended in train_data]
+        processed = [(state_np, pi, valids_idx, ended) for state_np, pi, valids_idx, ended in train_data]
         self.train_data.extend(processed)
+
+    def add_visual_data(self, visual_data, ended, iteration, phase):
+        processed = [(state_np, action) for state_np, action in visual_data]
+        self.visual_buffer.append((processed, ended, iteration, phase))
 
     def flush_visual_data(self):
         print("自对弈数据处理完毕")
