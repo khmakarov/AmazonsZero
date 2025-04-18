@@ -18,9 +18,8 @@ class MCTS():
         self.Vs = {}  # 存储有效动作掩码
 
     def getActionProb(self, game, temp=1):
-        game_ = GameCore(game)
         for _ in range(self.num_simulations):
-            self.search(game_)
+            self.search(game)
 
         s = game.compute_state_hash()
         valids_idx = game.get_legal_actions_np()
