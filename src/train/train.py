@@ -11,7 +11,7 @@ from core.python.net import AlphaZeroNet
 from src.utils.ckpt_manager import CheckpointManager
 from src.utils.data_manager import DataManager
 from evaluate import Evaluator
-from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard.writer import SummaryWriter
 
 
 class Trainer:
