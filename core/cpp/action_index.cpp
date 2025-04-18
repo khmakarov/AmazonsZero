@@ -27,7 +27,8 @@ py::array_t<int> generate_mask_np(const std::pair<std::array<MoveAction, POSSIBL
 	{
 		if (count == counts)
 			break;
-		if (auto it = action_map.find(static_cast<size_t>(std::get<0>(action)) << 16 | (static_cast<size_t>(std::get<1>(action)) << 8) | static_cast<size_t>(std::get<2>(action))); it != action_map.end())
+		auto action_sum = static_cast<size_t>(std::get<0>(action)) << 16 | (static_cast<size_t>(std::get<1>(action)) << 8) | static_cast<size_t>(std::get<2>(action));
+		if (auto it = action_map.find(action_sum); it != action_map.end())
 			buf[++count] = static_cast<int>(it->second);
 	}
 	return mask_index;
