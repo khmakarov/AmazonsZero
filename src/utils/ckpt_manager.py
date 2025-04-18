@@ -14,8 +14,8 @@ class CheckpointManager:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"checkpoint_{timestamp}_{win_rate:.2f}.pth"
         filepath = os.path.join(self.checkpoint_dir, filename)
-
-        torch.save({'model': model.state_dict(), 'optimizer': optimizer.state_dict(), 'win_rate': win_rate}, filepath)
+        checkpoint = {'model': model.state_dict(), 'optimizer': optimizer.state_dict(), 'win_rate': win_rate}
+        torch.save(checkpoint, filepath)
 
         if not self.best_model or win_rate >= self.best_model[1]:
             self.best_model = (filepath, win_rate)
