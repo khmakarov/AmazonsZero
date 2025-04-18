@@ -74,13 +74,12 @@ void GameCore::step(const int action_index)
 	current_player ^= 1;
 }
 
-int GameCore::is_terminal() const
+int GameCore::is_terminal()
 {
-	if (generate_moves(black) && generate_moves(white))
-		return 0;
 	if (generate_moves(current_player ? white : black))
-		return 1;
-	return -1;
+		return 0;
+	else
+		return current_player ? 1 : -1;
 }
 
 MoveAction GameCore::index2action(const int index)
