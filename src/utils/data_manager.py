@@ -29,4 +29,8 @@ class DataManager:
         self.train_data.clear()
 
     def sample_batch(self, batch_size):
-        return random.sample(self.train_data, batch_size)
+        random.shuffle(self.train_data)
+        batches = [
+            self.train_data[i * batch_size:(i + 1) * batch_size] for i in range((len(self.train_data) + batch_size - 1) // batch_size)
+        ]
+        return batches
