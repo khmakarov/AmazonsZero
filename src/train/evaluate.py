@@ -79,13 +79,10 @@ class Evaluator:
                     state = next_state
                     current_model = model_b if current_model == model_a else model_a
                 else:
-                    print(" 对局结束")
                     episode_data.append([state.get_state_np(), state.index2action(0)])
                     a_win = 1 if (start == 0 and ended == 1) or (start == 1 and ended == -1) else 0
                     break
-
             return (episode_data, ended, a_win)
         finally:
-            print(" 子进程返回")
             del mcts_a, mcts_b, current_model
             torch.cuda.empty_cache()
