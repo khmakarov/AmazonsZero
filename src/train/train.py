@@ -1,6 +1,8 @@
 # train.py
 import os
+import pstats
 import hydra
+import cProfile
 import numpy as np
 import torch
 import torch.multiprocessing as mp
@@ -24,6 +26,9 @@ class Trainer:
         self.training = cfg.training
         self.win_rate = cfg.evaluator.win_rate
         self.optimizer = Adam(self.nnet.parameters(), lr=cfg.training.lr, weight_decay=cfg.training.weight_decay)
+        if self.load_model:
+            checkpoint = torch.load(self.load_model)
+            self.optimizer.load_state_dict(checkpoint['optimizer'])
         self.ckpt_mgr = CheckpointManager()
         self.data_mgr = DataManager()
         self.evaluator = Evaluator(cfg)
@@ -36,7 +41,6 @@ class Trainer:
         if self.load_model:
             checkpoint = torch.load(self.load_model)
             nnet.load_state_dict(checkpoint['model'])
-            self.optimizer.load_state_dict(checkpoint['optimizer'])
         return nnet
 
     def learn(self):
@@ -58,7 +62,6 @@ class Trainer:
             results = pool.starmap(self.execute_episode_worker, tasks)
             pool.close()
             pool.join()
-        print("自对弈数据生成完毕")
         return results
 
     def _process_episodes(self, results):
@@ -69,12 +72,14 @@ class Trainer:
         print("该迭代数据保存完毕")
 
     def _train_step(self):
-        batch = self.data_mgr.sample_batch(self.training.batch_size)
-        total_loss, loss_pi, loss_v = self.train(batch)
+        batches = self.data_mgr.sample_batch(self.training.batch_size)
+        for batch in batches:
+            total_loss, loss_pi, loss_v = self.train(batch)
+            print(f"Loss/total:{total_loss}, Loss/policy:{loss_pi}, Loss/value:{loss_v}")
+            self.writer.add_scalar('Loss/total', total_loss, self.iteration)
+            self.writer.add_scalar('Loss/policy', loss_pi, self.iteration)
+            self.writer.add_scalar('Loss/value', loss_v, self.iteration)
         print("该迭代数据训练完毕")
-        self.writer.add_scalar('Loss/total', total_loss, self.iteration)
-        self.writer.add_scalar('Loss/policy', loss_pi, self.iteration)
-        self.writer.add_scalar('Loss/value', loss_v, self.iteration)
 
     def _evaluation_step(self):
         latest_path = self.ckpt_mgr.get_latest_checkpoint()
@@ -141,6 +146,8 @@ class Trainer:
             nnet.load_state_dict(nnet_state_dict)
             mcts = MCTS(nnet, cfg)
             state = GameCore()
+            pr = cProfile.Profile()
+            pr.enable()
             while True:
                 ended = state.is_terminal()
                 if ended == 0:
@@ -151,7 +158,6 @@ class Trainer:
                     episode_data.append([state.get_state_np(), pi, valids_idx, state.index2action(action_index)])
                     state = next_state
                 else:
-                    print(" 对局结束")
                     episode_data.append(
                         [
                             state.get_state_np(),
@@ -163,7 +169,11 @@ class Trainer:
                     break
             return (episode_data, ended)
         finally:
-            print(" 子进程返回")
+            pr.disable()
+            stats = pstats.Stats(pr)
+            stats.strip_dirs()  # 移除文件路径前缀
+            stats.sort_stats('cumtime')  # 按累计时间排序
+            stats.print_stats(r'mcts\.py|net\.py|train\.py')  # 仅显示指定文件
             del mcts, nnet
             torch.cuda.empty_cache()
 
