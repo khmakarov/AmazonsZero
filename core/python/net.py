@@ -107,9 +107,25 @@ class AlphaZeroNet(nn.Module):
     def predict(self, state, valids_idx):
         self.eval()
         with torch.no_grad():
-            state = state.get_state_np()
-            state = torch.tensor(state, dtype=torch.float32)
-            state = state.permute(2, 0, 1).unsqueeze(0).to('cuda')
-            valids_idx = torch.as_tensor(valids_idx, device='cuda').unsqueeze(0)
-            log_pi, v = self(state, valids_idx)
-            return torch.exp(log_pi).cpu().numpy()[0], v.cpu().numpy()[0][0]
+            try:
+                state = torch.tensor(state, dtype=torch.float32)
+                state = state.permute(2, 0, 1).unsqueeze(0).to('cuda')
+                valids_idx = torch.as_tensor(valids_idx, device='cuda').unsqueeze(0)
+                log_pi, v = self(state, valids_idx)
+                return torch.exp(log_pi).cpu().numpy()[0], v.cpu().numpy()[0][0]
+            finally:
+                del state, valids_idx, log_pi, v
+
+    def predict_batch(self, states, valids_idx):
+        self.eval()
+        with torch.no_grad():
+            try:
+                states = torch.as_tensor(states, dtype=torch.float32)
+                states = states.permute(0, 3, 1, 2).to('cuda')
+                valids_idx = torch.as_tensor(valids_idx, dtype=torch.int, device='cuda')
+                log_pi, v = self(states, valids_idx)
+                pi = torch.exp(log_pi).cpu().numpy()
+                v = v.cpu().numpy().squeeze(axis=1)
+                return pi, v
+            finally:
+                del states, valids_idx, log_pi, v
