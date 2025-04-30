@@ -11,20 +11,17 @@ class ResidualBlock(nn.Module):
         # 第一个卷积层
         self.conv1 = nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=False)
         nn.init.kaiming_normal_(self.conv1.weight, mode='fan_out', nonlinearity='relu')
-        self.bn1 = nn.BatchNorm2d(channels, eps=1e-5, momentum=0.01)  # 修正eps
+        self.bn1 = nn.BatchNorm2d(channels, eps=1e-5, momentum=0.01)
 
         # 第二个卷积层（零初始化）
         self.conv2 = nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=False)
         nn.init.zeros_(self.conv2.weight)
-        self.bn2 = nn.BatchNorm2d(channels, eps=1e-5, momentum=0.01)  # 修正eps
+        self.bn2 = nn.BatchNorm2d(channels, eps=1e-5, momentum=0.01)
 
         # SE模块（调整压缩比为4）
         self.se = nn.Sequential(
-            nn.AdaptiveAvgPool2d(1),
-            nn.Conv2d(channels, channels // 4, kernel_size=1, bias=False),  # 通道数调整
-            nn.ReLU(inplace=True),
-            nn.Conv2d(channels // 4, channels, kernel_size=1, bias=True),
-            nn.Sigmoid()
+            nn.AdaptiveAvgPool2d(1), nn.Conv2d(channels, channels // 4, kernel_size=1, bias=False), nn.ReLU(inplace=True),
+            nn.Conv2d(channels // 4, channels, kernel_size=1, bias=True), nn.Sigmoid()
         )
         nn.init.kaiming_normal_(self.se[1].weight, mode='fan_out', nonlinearity='relu')
         nn.init.zeros_(self.se[3].weight)
@@ -36,7 +33,24 @@ class ResidualBlock(nn.Module):
         x = self.bn2(self.conv2(x))
         x = x * self.se(x)
         x += residual
-        return x  # 移除最后的ReLU
+        return x
+
+
+class ValidMask(nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, p, valids_idx):
+        batch_size = p.size(0)
+        max_length = valids_idx[:, 0].max().item()
+        indices = valids_idx[:, 1:max_length + 1]
+        batch_idx = torch.arange(batch_size, device=p.device)[:, None]
+        valid_mask = (indices != -1)
+
+        valids = torch.zeros((batch_size, 33344), dtype=torch.bool, device=p.device)
+        valids[batch_idx.expand_as(indices)[valid_mask], indices[valid_mask]] = True
+        return p.masked_fill(~valids, -1e9)
 
 
 class AlphaZeroNet(nn.Module):
@@ -60,13 +74,16 @@ class AlphaZeroNet(nn.Module):
         nn.init.normal_(self.policy_fc[-1].weight, mean=0, std=0.01)
 
         # ----------------- 价值头 -----------------
-        self.value_conv = nn.Conv2d(256, 1, kernel_size=1, bias=False)
-        nn.init.kaiming_normal_(self.value_conv.weight, mode='fan_out', nonlinearity='relu')
-        self.value_bn = nn.BatchNorm2d(1, eps=1e-5, momentum=0.01)
-        self.value_fc = nn.Sequential(nn.Linear(1 * 8 * 8, 512), nn.ReLU(inplace=True), nn.Linear(512, 256), nn.ReLU(inplace=True), nn.Linear(256, 1))
+        # 价值头（AlphaZero标准架构）
+        self.value_conv = nn.Conv2d(256, 32, kernel_size=1)  # 新增卷积层
+        self.value_bn = nn.BatchNorm2d(32, eps=1e-5, momentum=0.01)
+        self.value_fc = nn.Sequential(nn.Linear(32 * 8 * 8, 256), nn.ReLU(), nn.Linear(256, 1), nn.Tanh())
 
-        nn.init.kaiming_normal_(self.value_fc[-1].weight, mode='fan_in', nonlinearity='linear')
-        nn.init.zeros_(self.value_fc[-1].bias)
+        # 初始化逻辑
+        nn.init.kaiming_normal_(self.value_conv.weight, mode='fan_out', nonlinearity='relu')
+        nn.init.zeros_(self.value_fc[2].weight)  # 最后一层零初始化
+        nn.init.zeros_(self.value_fc[2].bias)
+        self.valid_mask = ValidMask()
 
     def forward(self, x, valids_idx=None):
         x = F.relu(self.input_bn(self.input_conv(x)), inplace=True)
@@ -76,25 +93,12 @@ class AlphaZeroNet(nn.Module):
         p = F.relu(self.policy_bn(p), inplace=True)
         p = p.reshape(p.size(0), -1)
         p = self.policy_fc(p)
-
-        if valids_idx is not None:
-            batch_size = x.size(0)
-            max_length = valids_idx[:, 0].max().item()
-            indices = valids_idx[:, 1:max_length + 1]
-            batch_idx = torch.arange(batch_size, device=x.device)[:, None]
-            valid_mask = (indices != -1)
-            valids = torch.zeros((batch_size, 33344), dtype=torch.bool, device=x.device)
-            valids[batch_idx.expand_as(indices)[valid_mask], indices[valid_mask]] = True
-            p = p.masked_fill(~valids, -1e9)
-
+        p = self.valid_mask(p, valids_idx)
         policy = F.log_softmax(p, dim=1)
 
-        # 价值头
-        v = self.value_conv(x)
-        v = F.relu(self.value_bn(v), inplace=True)
-        v = v.view(v.size(0), -1)
-        v = self.value_fc(v)
-        value = torch.tanh(v)
+        v = F.relu(self.value_bn(self.value_conv(x)), inplace=True)
+        v = v.view(v.size(0), -1)  # [B, 32*8*8]
+        value = self.value_fc(v)
 
         return policy, value
 
