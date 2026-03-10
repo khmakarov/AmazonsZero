@@ -15,8 +15,7 @@ class DataManager:
         self.train_data.extend(processed)
 
     def add_visual_data(self, visual_data, ended, iteration, phase):
-        processed = [(state_np, action) for state_np, action in visual_data]
-        self.visual_buffer.append((processed, ended, iteration, phase))
+        self.visual_buffer.append((visual_data, ended, iteration, phase))
 
     def flush_visual_data(self):
         print("自对弈数据处理完毕")
@@ -29,8 +28,4 @@ class DataManager:
         self.train_data.clear()
 
     def sample_batch(self, batch_size):
-        random.shuffle(self.train_data)
-        batches = [
-            self.train_data[i * batch_size:(i + 1) * batch_size] for i in range((len(self.train_data) + batch_size - 1) // batch_size)
-        ]
-        return batches
+        return random.sample(self.train_data, batch_size)
