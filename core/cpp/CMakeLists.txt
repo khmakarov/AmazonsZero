@@ -9,7 +9,7 @@ find_package(pybind11 REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(XXHASH REQUIRED IMPORTED_TARGET libxxhash)
 
-pybind11_add_module(Amazons amazons.cpp game_core.cpp)
+pybind11_add_module(Amazons amazons.cpp game_core.cpp eval.cpp)
 
 target_compile_options(Amazons PRIVATE -O3 -flto=auto)
 target_include_directories(Amazons PRIVATE .)

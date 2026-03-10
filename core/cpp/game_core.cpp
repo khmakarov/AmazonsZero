@@ -20,6 +20,11 @@ GameCore::GameCore() : current_player(0),
 					   white(0x2400810000000000),
 					   blocks(0) {}
 
+uint64_t GameCore::invert()
+{
+	return (blocks | black | white);
+}
+
 size_t GameCore::compute_state_hash() const
 {
 	XXH64_state_t *state = XXH64_createState();
@@ -88,10 +93,10 @@ py::array_t<int> GameCore::get_legal_actions_np()
 	return mask_index;
 }
 
-ChildState GameCore::get_child_state_np(py::array_t<int> valids_idx)
+ChildState GameCore::get_child_state_np(py::array_t<int> cut_indices)
 {
-	auto buf = valids_idx.unchecked<1>();
-	const int num_child = buf(0);
+	const int num_child = cut_indices.size();
+	auto buf = cut_indices.unchecked<1>();
 	std::vector<size_t> child_hash(num_child, 0);
 	std::vector<int> child_valids_idx(num_child * POSSIBLE_ACTIONS, -1);
 
@@ -112,11 +117,11 @@ ChildState GameCore::get_child_state_np(py::array_t<int> valids_idx)
 	auto buf_hash = child_hash_np.mutable_unchecked<1>();
 	auto buf_states = child_states_np.mutable_unchecked<4>();
 	auto buf_valids = child_valids_idx_np.mutable_unchecked<2>();
-#pragma omp parallel for schedule(dynamic) if (num_child > 100)
+#pragma omp parallel for schedule(dynamic)
 	for (int i = 0; i < num_child; ++i)
 	{
 		GameCore child(*this);
-		child.step(buf(i + 1));
+		child.step(buf(i));
 		buf_hash[i] = child.compute_state_hash();
 		const int player_layer = (child.current_player == 0) ? 3 : 4;
 		for (int y = 0, cnt = 0; y < 8; ++y)
@@ -139,10 +144,9 @@ ChildState GameCore::get_child_state_np(py::array_t<int> valids_idx)
 
 void GameCore::step(const int action_index)
 {
-	const MoveAction &unpacked_action = action_list[action_index];
-	const std::array<uint64_t, 3> action = unpack_action(unpacked_action);
-	apply_move(action[0], action[1]);
-	blocks |= action[2];
+	auto [from, to, block] = action_list[action_index];
+	apply_move((1ull << from), (1ull << to));
+	blocks |= (1ull << block);
 	current_player ^= 1;
 }
 
@@ -158,6 +162,12 @@ MoveAction GameCore::index2action(const int index)
 {
 	const MoveAction &action = action_list[index];
 	return {std::get<0>(action), std::get<1>(action), std::get<2>(action)};
+}
+
+int GameCore::action2index(int x0, int y0, int x1, int y1, int x2, int y2)
+{
+	auto action_sum = static_cast<size_t>((y0 * 8 + x0) << 16 | ((y1 * 8 + x1) << 8) | (y2 * 8 + x2));
+	return action_map.find(action_sum)->second;
 }
 
 uint64_t GameCore::generate_moves(const uint64_t from) const
@@ -213,11 +223,6 @@ void GameCore::apply_move(const uint64_t from, const uint64_t to)
 void GameCore::restore_action()
 {
 	current_player ? white = (white ^ piece_to_backpack) | piece_from_backpack : black = (black ^ piece_to_backpack) | piece_from_backpack;
-}
-
-std::array<uint64_t, 3> GameCore::unpack_action(const std::tuple<int, int, int> &action)
-{
-	return {1ull << std::get<0>(action), 1ull << std::get<1>(action), 1ull << std::get<2>(action)};
 }
 
 std::array<uint64_t, 4> GameCore::unpack_pieces(const uint64_t pieces)
