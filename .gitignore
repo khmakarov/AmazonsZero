@@ -1,6 +1,12 @@
 .vscode
 .venv
 core/cpp/build
+core/base/build
+data/game
+data/pretrain
+data/raw
+data/processed
+data/TensorBoard
 model
 outputs
 scripts

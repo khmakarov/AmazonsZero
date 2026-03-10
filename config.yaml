@@ -1,21 +1,23 @@
 checkpoint_dir: "model/checkpoint"
 log_dir: "model/logs"
-load_model: null
+load_model: "/home/khmakarov/AmazonsZero/model/checkpoint/checkpoint_20250511_222924_nan.pth"
 
 evaluator:
-  num_games: 8
+  num_games: 1
   win_rate: 0.75
 
 training:
-  num_iters: 3
+  seed: 42
+  num_iters: 1
   num_eps: 8
-  batch_size: 320
-  eval_freq: 1
-  lr: 0.001
+  batch_size: 400
+  eval_freq: 3
+  epoch: 50
+  lr: 1e-4
   weight_decay: 1e-4
 
 mcts:
-  num_simulations: 128
+  num_simulations: 32
   cpuct: 1.0
   POSSIBLE_ACTIONS: 1500
   TOTAL_ACTIONS: 33344
